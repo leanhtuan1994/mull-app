@@ -9,6 +9,8 @@
 
 /* Mull tokens that are not part of HeroUI's theme contract. */
 @theme inline {
+  /* Declared here too so Tailwind tooling knows the `font-rounded` utility. */
+  --font-rounded: "ui-rounded";
   --color-link: var(--link);
   --color-accent-text: var(--accent-text);
   --color-accent-tint: var(--accent-tint);
