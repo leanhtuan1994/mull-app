@@ -1,0 +1,79 @@
+{
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "search.exclude": {
+    "yarn.lock": true
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "eslint.format.enable": true,
+  "[javascript][typescript][typescriptreact]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.codeActionsOnSave": [
+      "source.addMissingImports",
+      "source.fixAll.eslint"
+    ]
+  },
+  "[json][jsonc]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[astro]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "astro-build.astro-vscode"
+  },
+  "cSpell.words": [
+    "mull",
+    "Entypo",
+    "Flashlist",
+    "flatlist",
+    "heroui",
+    "Lato",
+    "moti",
+    "nativewind",
+    "noemit",
+    "springify",
+    "Uniwind",
+    "viewability",
+    "worklets"
+  ],
+  "i18n-ally.localesPaths": ["src/translations/"],
+  "i18n-ally.keystyle": "nested",
+  "i18n-ally.disabled": false, // make sure to disable i18n-ally in your global setting and only enable it for such projects
+  "tailwindCSS.experimental.classRegex": [
+    ["tv\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+  "tailwindCSS.classAttributes": [
+    "class",
+    "className",
+    "headerClassName",
+    "contentContainerClassName",
+    "columnWrapperClassName",
+    "endFillColorClassName",
+    "imageClassName",
+    "tintColorClassName",
+    "ios_backgroundColorClassName",
+    "thumbColorClassName",
+    "trackColorOnClassName",
+    "trackColorOffClassName",
+    "selectionColorClassName",
+    "cursorColorClassName",
+    "underlineColorAndroidClassName",
+    "placeholderTextColorClassName",
+    "selectionHandleColorClassName",
+    "colorsClassName",
+    "progressBackgroundColorClassName",
+    "titleColorClassName",
+    "underlayColorClassName",
+    "colorClassName",
+    "drawerBackgroundColorClassName",
+    "statusBarBackgroundColorClassName",
+    "backdropColorClassName",
+    "backgroundColorClassName",
+    "ListFooterComponentClassName",
+    "ListHeaderComponentClassName"
+  ],
+  "tailwindCSS.classFunctions": ["useResolveClassNames"]
+}

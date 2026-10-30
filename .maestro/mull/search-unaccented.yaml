@@ -1,0 +1,20 @@
+# "luong tu" finds the chat titled "Lượng tử hoá là gì?".
+appId: ${APP_ID}
+---
+- runFlow: ../utils/launch-app.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'open-drawer'
+    timeout: 30000
+- runFlow: ../utils/open-drawer.yaml
+- tapOn:
+    id: 'drawer-search'
+- inputText: 'luong tu'
+- extendedWaitUntil:
+    visible: 'Lượng tử hoá.*'
+    timeout: 3000
+- eraseText: 20
+- inputText: 'khong co chat nao nhu vay'
+- extendedWaitUntil:
+    visible: 'Không có cuộc trò chuyện nào khớp.*'
+    timeout: 3000

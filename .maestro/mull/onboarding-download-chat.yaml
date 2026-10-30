@@ -1,0 +1,45 @@
+# Fresh install → onboarding → download the smallest model → chat.
+# Downloads ~400 MB from Hugging Face the first time.
+appId: ${APP_ID}
+---
+- runFlow: ../utils/clear-state.yaml
+- runFlow: ../utils/launch-app.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-continue'
+    timeout: 60000
+- assertVisible: 'Chạy ngay trên máy.*'
+- tapOn:
+    id: 'onboarding-continue'
+- assertVisible: 'Chọn model đầu tiên'
+- tapOn:
+    id: 'onboarding-model-qwen3-0.6b-q4km'
+- tapOn:
+    id: 'onboarding-download'
+- extendedWaitUntil:
+    visible: 'Bắt đầu trò chuyện'
+    timeout: 900000
+- tapOn: 'Bắt đầu trò chuyện'
+- extendedWaitUntil:
+    visible: 'Bạn đang nghĩ gì?'
+    timeout: 10000
+# Suggestions fill the composer without sending.
+- tapOn:
+    id: 'suggestion-explain'
+- assertVisible: 'Bạn đang nghĩ gì?'
+- tapOn:
+    id: 'composer-input'
+- eraseText: 200
+# inputText cannot type Vietnamese on iOS; paste it instead.
+- setClipboard: 'Lượng tử hoá là gì?'
+- pasteText
+- tapOn:
+    id: 'composer-send'
+- extendedWaitUntil:
+    visible: 'Sao chép'
+    timeout: 180000
+- extendedWaitUntil:
+    visible:
+      id: 'composer-send'
+    timeout: 300000
+- assertVisible: 'Sao chép'

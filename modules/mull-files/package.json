@@ -1,0 +1,10 @@
+{
+  "name": "mull-files",
+  "version": "0.1.0",
+  "description": "File helpers for Mull: streaming SHA-256, iCloud backup exclusion and disk usage",
+  "main": "index.ts",
+  "license": "MIT",
+  "author": "Mull",
+  "homepage": "https://github.com/leanhtuan1994/mull-app",
+  "private": true
+}

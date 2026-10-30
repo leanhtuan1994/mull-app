@@ -1,0 +1,31 @@
+{
+  "extends": "expo/tsconfig.base.json",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@env": ["./src/lib/env.js"]
+    },
+    "esModuleInterop": true,
+    "checkJs": true
+  },
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js",
+    "docs",
+    "cli",
+    "android",
+    "ios",
+    "lint-staged.config.js",
+    "__mocks__"
+  ],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "uniwind-env.d.ts"
+  ]
+}

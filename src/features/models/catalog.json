@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": 1,
+  "models": [
+    {
+      "id": "qwen3-0.6b-q4km",
+      "name": "Qwen3 0.6B",
+      "family": "qwen",
+      "publisher": "Qwen (Alibaba)",
+      "license": "Apache-2.0",
+      "params": 0.6,
+      "quant": "Q4_K_M",
+      "sizeBytes": 396705472,
+      "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "url": "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF",
+      "contextTokens": 2048,
+      "thinking": true,
+      "defaultSampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "minP": 0,
+        "repeatPenalty": 1.05
+      },
+      "labels": ["smallest", "fastest", "multilingual"],
+      "description": {
+        "vi": "Model Qwen3 nhỏ nhất. Đủ nhanh để chạy trên iOS Simulator và iPhone đời cũ; hợp với câu hỏi ngắn và viết lại nhanh. Hiểu được tiếng Việt nhưng câu trả lời còn đơn giản.",
+        "en": "The smallest Qwen3 model. Fast enough for the iOS Simulator and older iPhones; good for short questions and quick rewrites. Vietnamese is understandable but simple."
+      },
+      "simulatorFriendly": true
+    },
+    {
+      "id": "gemma-3-1b-it-q4km",
+      "name": "Gemma 3 1B",
+      "family": "gemma",
+      "publisher": "Google",
+      "license": "Gemma Terms of Use",
+      "params": 1,
+      "quant": "Q4_K_M",
+      "sizeBytes": 806058272,
+      "sha256": "8270790f3ab69fdfe860b7b64008d9a19986d8df7e407bb018184caa08798ebd",
+      "url": "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/f0b45be0aac41bd6a100a4b5734cad5f67255bfb/gemma-3-1b-it-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF",
+      "contextTokens": 2048,
+      "thinking": false,
+      "defaultSampling": {
+        "temperature": 0.8,
+        "topP": 0.95,
+        "minP": 0,
+        "repeatPenalty": 1
+      },
+      "labels": ["small", "multilingual"],
+      "description": {
+        "vi": "Model hướng dẫn gọn nhẹ của Google. Giọng thân thiện, hỗ trợ nhiều ngôn ngữ khá tốt so với kích thước.",
+        "en": "Google's compact instruction model. Friendly tone and solid multilingual coverage for its size."
+      },
+      "simulatorFriendly": true
+    },
+    {
+      "id": "llama-3.2-1b-instruct-q4km",
+      "name": "Llama 3.2 1B",
+      "family": "llama",
+      "publisher": "Meta",
+      "license": "Llama 3.2 Community License",
+      "params": 1.2,
+      "quant": "Q4_K_M",
+      "sizeBytes": 807694464,
+      "sha256": "6f85a640a97cf2bf5b8e764087b1e83da0fdb51d7c9fab7d0fece9385611df83",
+      "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF",
+      "contextTokens": 2048,
+      "thinking": false,
+      "defaultSampling": {
+        "temperature": 0.8,
+        "topP": 0.9,
+        "minP": 0,
+        "repeatPenalty": 1.1
+      },
+      "labels": ["small", "fast"],
+      "description": {
+        "vi": "Llama cỡ nhỏ của Meta, làm cho thiết bị di động. Nhanh và ổn định; mạnh nhất với tiếng Anh.",
+        "en": "Meta's small Llama for on-device use. Quick and predictable; strongest in English."
+      },
+      "simulatorFriendly": true
+    },
+    {
+      "id": "qwen3-1.7b-q4km",
+      "name": "Qwen3 1.7B",
+      "family": "qwen",
+      "publisher": "Qwen (Alibaba)",
+      "license": "Apache-2.0",
+      "params": 1.7,
+      "quant": "Q4_K_M",
+      "sizeBytes": 1107409472,
+      "sha256": "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897",
+      "url": "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/d7f544eead698dbd1f15126ef60b45a1e1933222/Qwen3-1.7B-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF",
+      "contextTokens": 2048,
+      "thinking": true,
+      "defaultSampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "minP": 0,
+        "repeatPenalty": 1.05
+      },
+      "labels": ["fast", "multilingual", "vietnamese"],
+      "description": {
+        "vi": "Model đa năng, nhanh, tiếng Việt tốt so với kích thước. Lựa chọn đầu tiên hợp lý cho iPhone có 4–6 GB RAM.",
+        "en": "A fast all-rounder with good Vietnamese for its size. A sensible first model on iPhones with 4–6 GB of RAM."
+      },
+      "simulatorFriendly": false
+    },
+    {
+      "id": "smollm3-3b-q4km",
+      "name": "SmolLM3 3B",
+      "family": "smollm",
+      "publisher": "Hugging Face",
+      "license": "Apache-2.0",
+      "params": 3,
+      "quant": "Q4_K_M",
+      "sizeBytes": 1915306528,
+      "sha256": "4de907d2d388a5508fb7cb443a06effe14cce3518b0a78d3bdd9e74d9edce989",
+      "url": "https://huggingface.co/unsloth/SmolLM3-3B-GGUF/resolve/a7bc17204c8a326d6bd6e466e076959eddae2025/SmolLM3-3B-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/unsloth/SmolLM3-3B-GGUF",
+      "contextTokens": 2048,
+      "thinking": true,
+      "defaultSampling": {
+        "temperature": 0.6,
+        "topP": 0.95,
+        "minP": 0,
+        "repeatPenalty": 1
+      },
+      "labels": ["balanced", "reasoning"],
+      "description": {
+        "vi": "Model 3B mở hoàn toàn, được huấn luyện để suy luận. Trả lời rõ ràng, có cấu trúc; hỗ trợ tiếng Việt còn hạn chế.",
+        "en": "A fully open 3B model trained for reasoning. Clear, structured answers; Vietnamese support is limited."
+      },
+      "simulatorFriendly": false
+    },
+    {
+      "id": "llama-3.2-3b-instruct-q4km",
+      "name": "Llama 3.2 3B",
+      "family": "llama",
+      "publisher": "Meta",
+      "license": "Llama 3.2 Community License",
+      "params": 3.2,
+      "quant": "Q4_K_M",
+      "sizeBytes": 2019377696,
+      "sha256": "6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff",
+      "url": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/5ab33fa94d1d04e903623ae72c95d1696f09f9e8/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF",
+      "contextTokens": 2048,
+      "thinking": false,
+      "defaultSampling": {
+        "temperature": 0.8,
+        "topP": 0.9,
+        "minP": 0,
+        "repeatPenalty": 1.1
+      },
+      "labels": ["balanced"],
+      "description": {
+        "vi": "Model cân bằng của Meta để chạy trên máy. Giỏi tóm tắt, soạn thảo và trả lời câu hỏi thường ngày.",
+        "en": "Meta's balanced on-device model. Good at summaries, drafting and everyday questions."
+      },
+      "simulatorFriendly": false
+    },
+    {
+      "id": "phi-4-mini-instruct-q4km",
+      "name": "Phi-4 mini",
+      "family": "phi",
+      "publisher": "Microsoft",
+      "license": "MIT",
+      "params": 3.8,
+      "quant": "Q4_K_M",
+      "sizeBytes": 2491874272,
+      "sha256": "88c00229914083cd112853aab84ed51b87bdf6b9ce42f532d8c85c7c63b1730a",
+      "url": "https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/resolve/78eb92a46fc37e6b524df991ed9aca9bc6aa7b80/Phi-4-mini-instruct-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF",
+      "contextTokens": 2048,
+      "thinking": false,
+      "defaultSampling": {
+        "temperature": 0.8,
+        "topP": 0.9,
+        "minP": 0,
+        "repeatPenalty": 1
+      },
+      "labels": ["best_quality", "coding"],
+      "description": {
+        "vi": "Model gọn của Microsoft, mạnh về toán và lập trình so với kích thước. Cần iPhone có 8 GB RAM.",
+        "en": "Microsoft's compact model with strong maths and coding for its size. Needs an iPhone with 8 GB of RAM."
+      },
+      "simulatorFriendly": false,
+      "minRamGB": 8
+    },
+    {
+      "id": "qwen3-4b-instruct-2507-q4km",
+      "name": "Qwen3 4B",
+      "family": "qwen",
+      "publisher": "Qwen (Alibaba)",
+      "license": "Apache-2.0",
+      "params": 4,
+      "quant": "Q4_K_M",
+      "sizeBytes": 2497281120,
+      "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+      "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "sourceUrl": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF",
+      "contextTokens": 2048,
+      "thinking": false,
+      "defaultSampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "minP": 0,
+        "repeatPenalty": 1.05
+      },
+      "labels": ["best_quality", "multilingual", "vietnamese"],
+      "description": {
+        "vi": "Model mạnh nhất trong danh mục và giỏi tiếng Việt nhất. Cần iPhone có 8 GB RAM.",
+        "en": "The strongest model in the catalog and the best at Vietnamese. Needs an iPhone with 8 GB of RAM."
+      },
+      "simulatorFriendly": false,
+      "minRamGB": 8
+    }
+  ]
+}

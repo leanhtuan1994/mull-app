@@ -1,0 +1,23 @@
+# Appearance: Automatic / Light / Dark from Settings.
+appId: ${APP_ID}
+---
+- runFlow: ../utils/launch-app.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'open-drawer'
+    timeout: 30000
+- runFlow: ../utils/open-drawer.yaml
+- tapOn:
+    id: 'drawer-settings'
+- extendedWaitUntil:
+    visible: 'Giao diện'
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: 'settings-theme-dark'
+- tapOn:
+    id: 'settings-theme-dark'
+- tapOn:
+    id: 'settings-theme-light'
+- tapOn:
+    id: 'settings-theme-system'

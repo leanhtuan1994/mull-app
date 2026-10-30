@@ -1,0 +1,5 @@
+ignoredBuiltDependencies:
+  - unrs-resolver
+onlyBuiltDependencies:
+  # Downloads its prebuilt llama.cpp xcframework (SHA-256 checked) on install.
+  - llama.rn

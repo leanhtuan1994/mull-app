@@ -1,0 +1,35 @@
+# Stop mid-answer: the partial answer stays with a "Đã dừng" badge and the
+# next message can be sent right away. Fast with EXPO_PUBLIC_MULL_ENGINE=mock.
+appId: ${APP_ID}
+---
+- runFlow: ../utils/launch-app.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'open-drawer'
+    timeout: 30000
+- tapOn:
+    id: 'composer-input'
+- inputText: 'Ke mot cau chuyen dai ve Ha Noi'
+- tapOn:
+    id: 'composer-send'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-stop'
+    timeout: 60000
+- tapOn:
+    id: 'composer-stop'
+- extendedWaitUntil:
+    visible: 'Đã dừng'
+    timeout: 5000
+- assertVisible: 'Đã dừng'
+- tapOn:
+    id: 'composer-input'
+- inputText: 'Tiep tuc'
+- tapOn:
+    id: 'composer-send'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-stop'
+    timeout: 10000
+- tapOn:
+    id: 'composer-stop'

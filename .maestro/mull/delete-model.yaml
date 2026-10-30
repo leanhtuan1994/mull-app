@@ -1,0 +1,20 @@
+# Remove the downloaded model from Storage; chats stay.
+appId: ${APP_ID}
+---
+- runFlow: ../utils/launch-app.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'open-drawer'
+    timeout: 30000
+- runFlow: ../utils/open-drawer.yaml
+- tapOn:
+    id: 'drawer-storage'
+- extendedWaitUntil:
+    visible: 'Mull đang dùng'
+    timeout: 5000
+- tapOn:
+    id: 'storage-remove-qwen3-0.6b-q4km'
+- tapOn: 'Xoá'
+- extendedWaitUntil:
+    visible: 'Chưa có model nào trên máy.'
+    timeout: 3000

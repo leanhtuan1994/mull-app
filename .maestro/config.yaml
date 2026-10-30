@@ -1,0 +1,14 @@
+flows:
+  - mull/*
+
+excludeTags:
+  - util
+
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - onboarding-download-chat
+    - stop-answer
+    - search-unaccented
+    - theme
+    - delete-model

@@ -1,0 +1,148 @@
+/*
+ * Mull theme, direction B: native iOS structure, warm paper ground, mulberry
+ * accent. Tokens come from the approved prototype. Fonts are the system ones:
+ * SF Pro for body text, SF Rounded (`font-rounded`) for large titles.
+ */
+@layer theme {
+  :root {
+    @variant light {
+      --font-rounded: "ui-rounded";
+
+      --radius: 1rem;
+
+      --background: #f5f1ea;
+      --foreground: #1d1b18;
+
+      --surface: #fffdf9;
+      --surface-foreground: #1d1b18;
+      --surface-secondary: #efeae2;
+      --surface-secondary-foreground: #1d1b18;
+      --surface-tertiary: #e9e2d7;
+      --surface-tertiary-foreground: #1d1b18;
+
+      --overlay: #fffdf9;
+      --overlay-foreground: #1d1b18;
+      --backdrop: rgba(30, 20, 10, 0.32);
+
+      --muted: #69635a;
+
+      --default: rgba(60, 40, 20, 0.08);
+      --default-foreground: #1d1b18;
+
+      --accent: #8a2c58;
+      --accent-foreground: #ffffff;
+
+      --field-background: #fffdf9;
+      --field-foreground: #1d1b18;
+      --field-placeholder: var(--muted);
+      --field-border: rgba(60, 40, 20, 0.14);
+
+      --success: #35502a;
+      --success-foreground: #ffffff;
+      --warning: #8a5a00;
+      --warning-foreground: #ffffff;
+      --danger: #b3261e;
+      --danger-foreground: #ffffff;
+
+      --segment: #fffdf9;
+      --segment-foreground: #1d1b18;
+
+      --border: rgba(60, 40, 20, 0.08);
+      --separator: rgba(60, 40, 20, 0.14);
+      --focus: #8a2c58;
+      --link: #8a2c58;
+
+      /* Mull-only tokens */
+      --accent-text: #8a2c58;
+      --accent-tint: rgba(138, 44, 88, 0.1);
+      --label-secondary: #3f3a33;
+      --chevron: #8e877c;
+      --fill: rgba(60, 40, 20, 0.08);
+      --bubble: #eae3d8;
+      --drawer: #e9e2d7;
+      --disabled: #b9b0a3;
+      --track: #efeae2;
+      --other: #b9b0a3;
+      --radio: #c9c1b5;
+      --invert: #1d1b18;
+      --invert-foreground: #ffffff;
+      --ok-background: #e3ebdd;
+      --ok-foreground: #35502a;
+      --glass-solid: #fffdf9;
+
+      --surface-shadow: 0 0 0 1px rgba(60, 40, 20, 0.08);
+      --overlay-shadow: 0 -8px 30px rgba(60, 40, 20, 0.12);
+      --field-shadow: 0 0 0 0 transparent inset;
+    }
+
+    @variant dark {
+      --font-rounded: "ui-rounded";
+
+      --radius: 1rem;
+
+      --background: #171513;
+      --foreground: #f2ede6;
+
+      --surface: #24211d;
+      --surface-foreground: #f2ede6;
+      --surface-secondary: #35302a;
+      --surface-secondary-foreground: #f2ede6;
+      --surface-tertiary: #2a2622;
+      --surface-tertiary-foreground: #f2ede6;
+
+      --overlay: #24211d;
+      --overlay-foreground: #f2ede6;
+      --backdrop: rgba(0, 0, 0, 0.55);
+
+      --muted: #a39b8f;
+
+      --default: rgba(255, 240, 220, 0.1);
+      --default-foreground: #f2ede6;
+
+      /* The accent is lifted toward white: 20% for fills, 45% for text. */
+      --accent: #a15679;
+      --accent-foreground: #ffffff;
+
+      --field-background: #24211d;
+      --field-foreground: #f2ede6;
+      --field-placeholder: var(--muted);
+      --field-border: rgba(255, 240, 220, 0.12);
+
+      --success: #a9cf98;
+      --success-foreground: #171513;
+      --warning: #f0c36a;
+      --warning-foreground: #171513;
+      --danger: #ff7a6e;
+      --danger-foreground: #171513;
+
+      --segment: #4a443c;
+      --segment-foreground: #f2ede6;
+
+      --border: rgba(255, 240, 220, 0.08);
+      --separator: rgba(255, 240, 220, 0.12);
+      --focus: #bf8ba3;
+      --link: #bf8ba3;
+
+      --accent-text: #bf8ba3;
+      --accent-tint: rgba(161, 86, 121, 0.22);
+      --label-secondary: #d8d1c7;
+      --chevron: #7d766b;
+      --fill: rgba(255, 240, 220, 0.1);
+      --bubble: #35302a;
+      --drawer: #0f0e0c;
+      --disabled: #4f4941;
+      --track: #35302a;
+      --other: #6b645a;
+      --radio: #5a534a;
+      --invert: #f2ede6;
+      --invert-foreground: #171513;
+      --ok-background: #263222;
+      --ok-foreground: #a9cf98;
+      --glass-solid: #24211d;
+
+      --surface-shadow: 0 0 0 0 transparent inset;
+      --overlay-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+      --field-shadow: 0 0 0 0 transparent inset;
+    }
+  }
+}

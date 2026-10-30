@@ -1,0 +1,10 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+- tapOn:
+    id: 'open-drawer'
+- extendedWaitUntil:
+    visible:
+      id: 'drawer-search'
+    timeout: 5000

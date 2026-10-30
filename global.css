@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import "uniwind";
+
+@import "heroui-native/styles";
+/* Path to the heroui-native lib inside node_modules from the root of your project */
+@source './node_modules/heroui-native/lib';
+
+@import "./src/themes/mull.css";
+
+/* Mull tokens that are not part of HeroUI's theme contract. */
+@theme inline {
+  --color-link: var(--link);
+  --color-accent-text: var(--accent-text);
+  --color-accent-tint: var(--accent-tint);
+  --color-label-secondary: var(--label-secondary);
+  --color-chevron: var(--chevron);
+  --color-fill: var(--fill);
+  --color-bubble: var(--bubble);
+  --color-drawer: var(--drawer);
+  --color-disabled: var(--disabled);
+  --color-track: var(--track);
+  --color-other: var(--other);
+  --color-radio: var(--radio);
+  --color-invert: var(--invert);
+  --color-invert-foreground: var(--invert-foreground);
+  --color-ok-background: var(--ok-background);
+  --color-ok-foreground: var(--ok-foreground);
+  --color-glass-solid: var(--glass-solid);
+}
