@@ -1,7 +1,7 @@
 import type { IndexedChunk, MessageSource } from '@/db/types';
 
 import { cleanDocumentText } from './chunk';
-import { pickPassages, rankByWords, rankMixed } from './retrieve';
+import { selectSeeds, withNeighbours, withoutOverlap } from './retrieve';
 
 /** Asked of the model whenever document passages are in the prompt. */
 export const DOCUMENT_NOTE =
@@ -27,7 +27,8 @@ type Input = {
 
 /**
  * Whole documents when they fit the budget; otherwise the passages closest
- * to the question. Decided per question, against the model answering now.
+ * to the question, with the ones around them. Decided per question, against
+ * the model answering now.
  */
 export async function buildDocumentContext({
   chunks,
@@ -46,10 +47,8 @@ export async function buildDocumentContext({
     const hasVectors = chunks.some((c) => c.embedding);
     const query = hasVectors ? await embedQuery(question) : null;
     needsEmbeddings = !query || chunks.some((c) => !c.embedding);
-    const ranked = query
-      ? rankMixed(chunks, query, question)
-      : rankByWords(chunks, question);
-    picked = pickPassages(ranked, budgetTokens);
+    const seeds = selectSeeds(chunks, query, question);
+    picked = withNeighbours(seeds, chunks, budgetTokens);
   }
   if (picked.length === 0) return null;
 
@@ -65,7 +64,14 @@ export async function buildDocumentContext({
     const where = [sources[i].name, chunk.page ? `tr. ${chunk.page}` : null]
       .filter(Boolean)
       .join(', ');
-    return `[${i + 1}] (${where})\n${chunk.text}`;
+    const previous = picked[i - 1];
+    const follows =
+      previous?.attachmentId === chunk.attachmentId &&
+      previous.ord === chunk.ord - 1;
+    const text = follows
+      ? withoutOverlap(previous.text, chunk.text)
+      : chunk.text;
+    return `[${i + 1}] (${where})\n${text}`;
   });
   return {
     block: `<tài_liệu>\n${passages.join('\n\n')}\n</tài_liệu>`,

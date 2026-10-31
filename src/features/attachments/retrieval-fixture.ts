@@ -1,7 +1,8 @@
 /**
- * A made-up Vietnamese office handbook (no real people or data) and twenty
- * questions, each answered by exactly one section. Used to measure how well
- * the embedding model finds the right passage (recall@4).
+ * A made-up Vietnamese office handbook (no real people or data) and
+ * questions, each answered by exactly one section. The later sections carry
+ * names, codes and numbers, which embeddings match poorly. Used to measure
+ * how well retrieval finds the right passage.
  */
 export const HANDBOOK_SECTIONS = [
   'Giờ làm việc: văn phòng mở cửa từ 8 giờ sáng đến 17 giờ 30 chiều, từ thứ Hai đến thứ Sáu. Thứ Bảy làm việc buổi sáng theo lịch trực luân phiên.',
@@ -24,6 +25,12 @@ export const HANDBOOK_SECTIONS = [
   'Máy in: máy in màu ở tầng hai. In trên 50 trang cần xin phép trưởng bộ phận để tiết kiệm giấy.',
   'Sự kiện: tiệc cuối năm tổ chức vào tuần cuối tháng Mười hai. Mỗi phòng ban chuẩn bị một tiết mục văn nghệ.',
   'Nghỉ việc: khi muốn nghỉ việc, nhân viên chính thức báo trước 30 ngày và bàn giao công việc theo danh sách của quản lý.',
+  'Hỗ trợ kỹ thuật: người trực là anh Phạm Quốc Huy, số máy lẻ 2417. Ngoài giờ hành chính, gửi yêu cầu qua hệ thống HD-Desk.',
+  'Mã phòng ban: Kế toán là KT-07, Nhân sự là NS-02, Kinh doanh là KD-11. Mã phòng ban ghi ở góc phải mọi phiếu đề nghị.',
+  'Chấm công: dùng ứng dụng Chronos trên điện thoại, quét mã QR ở cửa ra vào. Quên chấm công thì làm phiếu bổ sung trong 48 giờ.',
+  'Wi-Fi: mạng nội bộ tên MULL-STAFF, mạng cho khách tên MULL-GUEST. Mật khẩu mạng khách đổi vào thứ Hai đầu tháng.',
+  'Quỹ phúc lợi: nhân viên kết hôn được hỗ trợ 2 triệu đồng, sinh con được hỗ trợ 1,5 triệu đồng. Hồ sơ nộp cho chị Lê Thu Trang ở phòng NS-02.',
+  'Tủ đồ cá nhân: mỗi người một tủ có khoá số. Quên mã tủ thì liên hệ bảo vệ ở tầng trệt và mang theo thẻ nhân viên.',
 ] as const;
 
 /** Question → index of the section that answers it. */
@@ -48,6 +55,22 @@ export const HANDBOOK_QUESTIONS: readonly [string, number][] = [
   ['Muốn in 100 trang có cần xin phép ai không?', 17],
   ['Tiệc tất niên tổ chức khi nào?', 18],
   ['Muốn nghỉ việc phải báo trước bao lâu?', 19],
+  ['Máy lẻ 2417 là của ai?', 20],
+  ['Ai phụ trách hỗ trợ kỹ thuật?', 20],
+  ['KD-11 là mã của phòng nào?', 21],
+  ['Ứng dụng Chronos dùng để làm gì?', 22],
+  ['Quên chấm công thì phải làm gì?', 22],
+  ['Mạng MULL-GUEST dành cho ai?', 23],
+  ['Chị Lê Thu Trang nhận hồ sơ gì?', 24],
+  ['Sinh con được công ty hỗ trợ bao nhiêu tiền?', 24],
+  ['Quên mã tủ đồ thì làm sao?', 25],
+];
+
+/** Questions the handbook does not answer; retrieval should pick little. */
+export const HANDBOOK_UNANSWERED: readonly string[] = [
+  'Có được mang thú cưng tới văn phòng không?',
+  'Công ty có xe đưa đón nhân viên không?',
+  'Giá cổ phiếu của công ty hôm nay là bao nhiêu?',
 ];
 
 /** The handbook as one Markdown document, for attaching in tests. */

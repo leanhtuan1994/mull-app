@@ -67,6 +67,42 @@ describe('buildDocumentContext', () => {
     expect(context?.needsEmbeddings).toBe(true);
   });
 
+  it('sends the lines two passages share only once', async () => {
+    const overlapping: IndexedChunk[] = [
+      'Mở đầu.\nDòng chung.',
+      'Dòng chung.\nPhần tiếp.',
+    ].map((text, i) => ({
+      id: 200 + i,
+      attachmentId: 1,
+      ord: i,
+      page: null,
+      text,
+      tokenCount: estimateTokens(text),
+      embedding: null,
+    }));
+    const context = await buildDocumentContext({
+      chunks: overlapping,
+      names,
+      question: 'Tóm tắt',
+      budgetTokens: 1000,
+      embedQuery: async () => null,
+    });
+    expect(context?.block.match(/Dòng chung/g)).toHaveLength(1);
+    expect(context?.block).toContain('[2] (so-tay.pdf)\nPhần tiếp.');
+  });
+
+  it('adds the passages around the closest one', async () => {
+    const context = await buildDocumentContext({
+      chunks: chunks(true),
+      names,
+      question: 'Xin nghỉ phép cần gửi đơn trước mấy ngày?',
+      budgetTokens: 70,
+      embedQuery: async (q) => mockEmbedding(q),
+    });
+    expect(context?.sources.map((s) => s.chunkId)).toContain(102);
+    expect(context?.sources.length).toBeGreaterThan(1);
+  });
+
   it('never exceeds the budget', async () => {
     const context = await buildDocumentContext({
       chunks: chunks(true),
