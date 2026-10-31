@@ -250,4 +250,125 @@ describe('preset repo', () => {
     });
     expect((await repos.chats.get(chatId))?.systemPrompt).toBe('Hãy hữu ích.');
   });
+
+  describe('attachments and document chunks', () => {
+    const draft = {
+      kind: 'document' as const,
+      name: 'ghi-chu.pdf',
+      mime: 'application/pdf',
+      path: 'drafts/x/ghi-chu.pdf',
+      sizeBytes: 1200,
+    };
+
+    it('turns a draft into a sent attachment', async () => {
+      const chatId = await repos.chats.create({
+        title: 'Tài liệu',
+        modelId: null,
+        systemPrompt: '',
+      });
+      const messageId = await repos.messages.add({
+        chatId,
+        role: 'user',
+        content: 'Tóm tắt giúp mình',
+      });
+      const id = await repos.attachments.addDraft(draft);
+      expect(await repos.attachments.listByChat(chatId)).toEqual([]);
+      await repos.attachments.attach(
+        [{ id, path: `${chatId}/x/ghi-chu.pdf`, thumbPath: null }],
+        { chatId, messageId }
+      );
+      expect(await repos.attachments.listByChat(chatId)).toEqual([
+        expect.objectContaining({
+          id,
+          messageId,
+          path: `${chatId}/x/ghi-chu.pdf`,
+        }),
+      ]);
+    });
+
+    it('stores vectors without changing chunk ids', async () => {
+      const chatId = await repos.chats.create({
+        title: 'Tài liệu',
+        modelId: null,
+        systemPrompt: '',
+      });
+      const messageId = await repos.messages.add({
+        chatId,
+        role: 'user',
+        content: 'Hỏi',
+      });
+      const id = await repos.attachments.addDraft(draft);
+      await repos.attachments.attach([{ id, path: 'p', thumbPath: null }], {
+        chatId,
+        messageId,
+      });
+      await repos.chunks.replace(id, [
+        { ord: 0, page: 1, text: 'Đoạn một', tokenCount: 3 },
+        { ord: 1, page: 2, text: 'Đoạn hai', tokenCount: 3 },
+      ]);
+      const [first, second] = await repos.chunks.listByAttachment(id);
+      await repos.chunks.setEmbeddings(
+        [{ id: first.id, embedding: [0.5, -0.25, 1] }],
+        'emb'
+      );
+      expect(
+        (await repos.chunks.listUnembedded(id, 'emb')).map((c) => c.id)
+      ).toEqual([second.id]);
+      const indexed = await repos.chunks.listForChat(chatId);
+      expect(indexed.map((c) => c.id)).toEqual([first.id, second.id]);
+      expect(Array.from(indexed[0].embedding!)).toEqual([0.5, -0.25, 1]);
+      expect(indexed[1].embedding).toBeNull();
+      expect(await repos.chunks.getSource(second.id)).toMatchObject({
+        text: 'Đoạn hai',
+        page: 2,
+        name: 'ghi-chu.pdf',
+        chatId,
+      });
+    });
+
+    it('deletes attachments and passages with their chat', async () => {
+      const chatId = await repos.chats.create({
+        title: 'Xoá',
+        modelId: null,
+        systemPrompt: '',
+      });
+      const messageId = await repos.messages.add({
+        chatId,
+        role: 'user',
+        content: 'x',
+      });
+      const id = await repos.attachments.addDraft(draft);
+      await repos.attachments.attach([{ id, path: 'p', thumbPath: null }], {
+        chatId,
+        messageId,
+      });
+      await repos.chunks.replace(id, [
+        { ord: 0, page: null, text: 'a', tokenCount: 1 },
+      ]);
+      const [chunk] = await repos.chunks.listByAttachment(id);
+      await repos.chats.remove(chatId);
+      expect(await repos.attachments.get(id)).toBeNull();
+      expect(await repos.chunks.getSource(chunk.id)).toBeNull();
+    });
+
+    it('records the sources of an answer', async () => {
+      const chatId = await repos.chats.create({
+        title: 'Nguồn',
+        modelId: null,
+        systemPrompt: '',
+      });
+      const id = await repos.messages.add({
+        chatId,
+        role: 'assistant',
+        content: 'Theo [1]',
+      });
+      const sources = [
+        { n: 1, chunkId: 7, attachmentId: 3, name: 'a.pdf', page: 2 },
+      ];
+      await repos.messages.setSources(id, sources);
+      expect(JSON.parse((await repos.messages.get(id))!.sources!)).toEqual(
+        sources
+      );
+    });
+  });
 });

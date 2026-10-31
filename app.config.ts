@@ -54,6 +54,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     '@kesha-antonov/react-native-background-downloader',
     ['expo-sqlite', { enableFTS: true }],
     ['expo-image'],
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Mull mở ảnh bạn chọn để model đọc ảnh ngay trên iPhone. Ảnh không rời khỏi máy.',
+        cameraPermission:
+          'Mull dùng camera để bạn chụp ảnh gửi cho model đọc ngay trên iPhone. Ảnh không rời khỏi máy.',
+        microphonePermission: false,
+      },
+    ],
+    'expo-document-picker',
     'expo-status-bar',
   ],
   extra: {

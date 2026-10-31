@@ -2,16 +2,39 @@ import { createStore } from 'zustand/vanilla';
 
 import type { Repos } from '@/db/repos';
 import { titleFromMessage } from '@/db/repos';
-import type { ChatRow, MessageRow } from '@/db/types';
-import type { ChatMessage, GenerateResult } from '@/features/llm/engine';
+import type {
+  AttachmentRow,
+  ChatRow,
+  MessageRow,
+  MessageSource,
+} from '@/db/types';
+import {
+  DOCUMENT_NOTE,
+  type DocumentContext,
+} from '@/features/attachments/document-context';
+import {
+  type ChatMessage,
+  type GenerateResult,
+  messageText,
+} from '@/features/llm/engine';
 import type { LlmController } from '@/features/llm/llm-store';
 import type { CatalogModel } from '@/features/models/catalog-schema';
 
 import {
   buildPrompt,
+  joinSystemPrompts,
+  reserveTokens,
   RESPONSE_LENGTH_TOKENS,
   type ResponseLength,
 } from './context-budget';
+
+/**
+ * The renderer only understands `$…$` and `$$…$$` math. Models otherwise
+ * mix in `\(…\)` and `\[…\]`; those are normalised before rendering, but
+ * asking up front keeps answers consistent.
+ */
+export const FORMAT_NOTE =
+  'Khi cần viết công thức toán, dùng $...$ trong dòng và $$...$$ trên dòng riêng.';
 
 export type UiMessage = Pick<
   MessageRow,
@@ -22,9 +45,15 @@ export type UiMessage = Pick<
   | 'tokensPerSecond'
   | 'tokenCount'
   | 'error'
-> & { stoppedByUser: boolean };
+> & {
+  stoppedByUser: boolean;
+  /** Files sent with a user message, oldest first. */
+  attachments: AttachmentRow[];
+  /** Document passages an answer was given. */
+  sources: MessageSource[];
+};
 
-export type ChatError = 'noModel' | 'load' | 'generate';
+export type ChatError = 'noModel' | 'load' | 'generate' | 'tooLong';
 
 export type ChatState = {
   chat: ChatRow | null;
@@ -40,6 +69,8 @@ export type ChatState = {
   /** Model for the next answer: the chat's, or the pick on the new-chat screen. */
   modelId: string | null;
   error: ChatError | null;
+  /** The last answer had to search documents that have no vectors yet. */
+  documentsUnindexed: boolean;
 };
 
 export type ChatDeps = {
@@ -47,6 +78,10 @@ export type ChatDeps = {
   llm: LlmController;
   findModel: (id: string | null) => CatalogModel | undefined;
   modelPath: (id: string) => string | undefined;
+  /** The vision projector of a downloaded model, if it has one. */
+  mmprojPath?: (id: string) => string | undefined;
+  /** Absolute path of an attachment file from its stored relative path. */
+  attachmentPath?: (relative: string) => string;
   settings: () => {
     temperature: number;
     responseLength: ResponseLength;
@@ -56,9 +91,35 @@ export type ChatDeps = {
   scheduleFrame?: (callback: () => void) => void;
   /** Called after a chat is created or gets a new message, so lists can refresh. */
   onChatsChanged?: () => void;
+  /**
+   * Document passages for a question in this chat, chosen against
+   * `budgetTokens` of the model answering now.
+   */
+  documentContext?: (input: {
+    chatId: number;
+    question: string;
+    budgetTokens: number;
+  }) => Promise<DocumentContext | null>;
+  /** Moves draft attachments under the chat once their message exists. */
+  attachDrafts?: (
+    ids: number[],
+    target: { chatId: number; messageId: number }
+  ) => Promise<void>;
 };
 
-export function toUiMessage(row: MessageRow): UiMessage {
+function parseSources(json: string | null): MessageSource[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json) as MessageSource[];
+  } catch {
+    return [];
+  }
+}
+
+export function toUiMessage(
+  row: MessageRow,
+  attachments: AttachmentRow[] = []
+): UiMessage {
   return {
     id: row.id,
     role: row.role,
@@ -68,6 +129,27 @@ export function toUiMessage(row: MessageRow): UiMessage {
     tokenCount: row.tokenCount,
     error: row.error,
     stoppedByUser: row.stoppedByUser === 1,
+    attachments,
+    sources: parseSources(row.sources),
+  };
+}
+
+/** Images of this many recent messages stay in the prompt. */
+const RECENT_IMAGE_MESSAGES = 2;
+/** Stands in for images the model no longer sees. */
+const OLDER_IMAGES_NOTE = '[ảnh đã gửi trước đó]';
+
+/** Share of the prompt documents may fill. */
+const DOCUMENT_SHARE = 0.4;
+
+/** The question with document passages placed before it, in the user turn. */
+function withDocuments(message: ChatMessage, block: string): ChatMessage {
+  if (typeof message.content === 'string') {
+    return { ...message, content: `${block}\n\n${message.content}` };
+  }
+  return {
+    ...message,
+    content: [{ type: 'text', text: block }, ...message.content],
   };
 }
 
@@ -80,6 +162,7 @@ export function createChatStore(deps: ChatDeps) {
     trimmed: false,
     modelId: null,
     error: null,
+    documentsUnindexed: false,
   }));
   const set = (patch: Partial<ChatState>) => store.setState(patch);
   let openSeq = 0;
@@ -87,11 +170,16 @@ export function createChatStore(deps: ChatDeps) {
   function loadable(model: CatalogModel) {
     const path = deps.modelPath(model.id);
     if (!path) return null;
+    const mmprojPath = model.vision ? deps.mmprojPath?.(model.id) : undefined;
+    // A vision model without its projector cannot load as one.
+    if (model.vision && !mmprojPath) return null;
     return {
       id: model.id,
       path,
       contextTokens: model.contextTokens,
       disableThinking: model.thinking,
+      mmprojPath,
+      imageMaxTokens: model.vision?.imageMaxTokens,
     };
   }
 
@@ -140,13 +228,45 @@ export function createChatStore(deps: ChatDeps) {
   ): Promise<void> {
     const settings = deps.settings();
     const maxNewTokens = RESPONSE_LENGTH_TOKENS[settings.responseLength];
+    // Documents may take 40% of the prompt; history is trimmed before them,
+    // since they ride on the newest message, which is always kept.
+    const room =
+      model.contextTokens - reserveTokens(model.contextTokens, maxNewTokens);
+    const question = history[history.length - 1];
+    const documents =
+      deps.documentContext && question
+        ? await deps
+            .documentContext({
+              chatId: chat.id,
+              question: messageText(question.content),
+              budgetTokens: Math.floor(room * DOCUMENT_SHARE),
+            })
+            .catch(() => null)
+        : null;
+    // Left this chat while documents were searched: drop the answer.
+    if (!onScreen(seq)) return;
+    set({ documentsUnindexed: documents?.needsEmbeddings ?? false });
     const prompt = buildPrompt({
-      modelSystemPrompt: model.systemPrompt,
+      modelSystemPrompt: joinSystemPrompts(
+        model.systemPrompt,
+        FORMAT_NOTE,
+        documents ? DOCUMENT_NOTE : undefined
+      ),
       chatSystemPrompt: chat.systemPrompt,
-      history,
+      history: documents
+        ? [...history.slice(0, -1), withDocuments(question, documents.block)]
+        : history,
       contextTokens: model.contextTokens,
       maxNewTokens,
+      imageTokens: model.vision?.imageMaxTokens ?? 0,
     });
+
+    // The newest message is always kept; if it alone overflows the context
+    // (images, documents), the engine would fail, so say why instead.
+    if (prompt.promptTokens > room) {
+      set({ streaming: null, error: 'tooLong' });
+      return;
+    }
 
     let buffer = '';
     let framePending = false;
@@ -213,6 +333,7 @@ export function createChatStore(deps: ChatDeps) {
           ...metrics,
         });
       }
+      if (documents) await repos.messages.setSources(id, documents.sources);
       await repos.chats.touch(chat.id);
     } catch {
       // The chat was deleted while answering.
@@ -233,10 +354,37 @@ export function createChatStore(deps: ChatDeps) {
     });
   }
 
-  function historyUpTo(messages: UiMessage[]): ChatMessage[] {
-    return messages
-      .filter((m) => m.content.trim() && !m.error)
-      .map((m) => ({ role: m.role, content: m.content }));
+  /**
+   * The conversation as the model reads it. A vision model gets the images
+   * of the two latest messages that carry any; older ones become a short
+   * note, since every image costs hundreds of tokens.
+   */
+  function historyUpTo(
+    messages: UiMessage[],
+    model?: CatalogModel
+  ): ChatMessage[] {
+    const usable = messages.filter((m) => m.content.trim() && !m.error);
+    const withImages = usable
+      .filter((m) => m.attachments.some((a) => a.kind === 'image'))
+      .slice(-RECENT_IMAGE_MESSAGES)
+      .map((m) => m.id);
+    return usable.map((m) => {
+      const images = m.attachments.filter((a) => a.kind === 'image');
+      if (images.length === 0 || !model?.vision || !deps.attachmentPath)
+        return { role: m.role, content: m.content };
+      if (!withImages.includes(m.id))
+        return { role: m.role, content: `${OLDER_IMAGES_NOTE}\n${m.content}` };
+      return {
+        role: m.role,
+        content: [
+          ...images.map((a) => ({
+            type: 'image' as const,
+            path: deps.attachmentPath!(a.path),
+          })),
+          { type: 'text' as const, text: m.content },
+        ],
+      };
+    });
   }
 
   return {
@@ -267,10 +415,19 @@ export function createChatStore(deps: ChatDeps) {
       const repos = deps.repos();
       const chat = await repos.chats.get(chatId);
       const rows = chat ? await repos.messages.listByChat(chatId) : [];
+      // One query for the whole chat, grouped here, rather than one per message.
+      const byMessage = new Map<number, AttachmentRow[]>();
+      for (const attachment of chat
+        ? await repos.attachments.listByChat(chatId)
+        : []) {
+        const list = byMessage.get(attachment.messageId!) ?? [];
+        list.push(attachment);
+        byMessage.set(attachment.messageId!, list);
+      }
       if (seq !== openSeq) return;
       set({
         chat,
-        messages: rows.map(toUiMessage),
+        messages: rows.map((row) => toUiMessage(row, byMessage.get(row.id))),
         streaming: null,
         trimmed: false,
         error: null,
@@ -285,8 +442,14 @@ export function createChatStore(deps: ChatDeps) {
       if (target) deps.llm.ensureLoaded(target).catch(() => undefined);
     },
 
-    /** Sends a message. Resolves with the chat id once the answer is saved. */
-    async send(text: string): Promise<number | null> {
+    /**
+     * Sends a message with any draft attachments. Resolves with the chat id
+     * once the answer is saved.
+     */
+    async send(
+      text: string,
+      attachmentIds: number[] = []
+    ): Promise<number | null> {
       const content = text.trim();
       if (!content || store.getState().streaming || deps.llm.isGenerating())
         return null;
@@ -314,7 +477,16 @@ export function createChatStore(deps: ChatDeps) {
         role: 'user',
         content,
       });
-      const userMessage = toUiMessage((await repos.messages.get(userId))!);
+      if (attachmentIds.length > 0) {
+        await deps.attachDrafts?.(attachmentIds, {
+          chatId: chat!.id,
+          messageId: userId,
+        });
+      }
+      const userMessage = toUiMessage(
+        (await repos.messages.get(userId))!,
+        await repos.attachments.listByIds(attachmentIds)
+      );
       const messages = [...store.getState().messages, userMessage];
       set({
         messages,
@@ -336,7 +508,7 @@ export function createChatStore(deps: ChatDeps) {
       }
       await answer(
         { model, chat: chat!, seq, replacesId: null },
-        historyUpTo(messages)
+        historyUpTo(messages, model)
       );
       return chat!.id;
     },
@@ -360,7 +532,7 @@ export function createChatStore(deps: ChatDeps) {
       }
       await answer(
         { model, chat, seq, replacesId: last.id },
-        historyUpTo(messages.slice(0, -1))
+        historyUpTo(messages.slice(0, -1), model)
       );
     },
 

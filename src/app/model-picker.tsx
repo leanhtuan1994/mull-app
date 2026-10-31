@@ -13,7 +13,7 @@ import {
   View,
 } from '@/components/ui';
 import { getRepos } from '@/db/client';
-import { findCatalogModel } from '@/features/models/catalog';
+import { findCatalogModel, totalBytes } from '@/features/models/catalog';
 import { chat, useChat, useModels } from '@/features/services';
 import { useSettings } from '@/features/settings/settings-store';
 import { formatBytes } from '@/lib/format';
@@ -26,7 +26,7 @@ export default function ModelPickerSheet() {
   const { t } = useTranslation();
   const { mode } = useLocalSearchParams<{ mode?: 'default' }>();
   const forDefault = mode === 'default';
-  const downloadedIds = useModels((s) => s.downloadedIds);
+  const downloadedIds = useModels((s) => s.downloadedChatIds);
   const chatModelId = useChat((s) => s.modelId);
   const defaultModelId = useSettings((s) => s.defaultModelId);
   const update = useSettings((s) => s.update);
@@ -99,7 +99,7 @@ export default function ModelPickerSheet() {
                 <Text className="text-[13px] text-muted">
                   {[
                     model.labels[0] && t(`labels.${model.labels[0]}`),
-                    formatBytes(model.sizeBytes),
+                    formatBytes(totalBytes(model)),
                   ]
                     .filter(Boolean)
                     .join(' · ')}

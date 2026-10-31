@@ -11,6 +11,7 @@ export const MODEL_LABELS = [
   'vietnamese',
   'reasoning',
   'coding',
+  'vision',
 ] as const;
 
 export const MODEL_FAMILIES = [
@@ -28,8 +29,23 @@ const samplingSchema = z.object({
   repeatPenalty: z.number().min(0.5).max(2),
 });
 
+const ggufUrl = z
+  .string()
+  .url()
+  .refine((u) => u.startsWith('https://') && u.endsWith('.gguf'), {
+    message: 'Model URLs must be https and point at a .gguf file',
+  });
+
+const fileSchema = z.object({
+  url: ggufUrl,
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  sizeBytes: z.number().int().positive(),
+});
+
 export const catalogModelSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9.-]*$/),
+  /** Chat models answer; embedding models only index documents. */
+  kind: z.enum(['chat', 'embedding']).default('chat'),
   name: z.string().min(1),
   family: z.enum(MODEL_FAMILIES),
   publisher: z.string().min(1),
@@ -38,14 +54,32 @@ export const catalogModelSchema = z.object({
   quant: z.string().min(1),
   sizeBytes: z.number().int().positive(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  url: z
-    .string()
-    .url()
-    .refine((u) => u.startsWith('https://') && u.endsWith('.gguf'), {
-      message: 'Model URLs must be https and point at a .gguf file',
-    }),
+  url: ggufUrl,
   sourceUrl: z.string().url(),
   contextTokens: z.number().int().min(512),
+  /**
+   * f16 KV cache per token of context: layers × KV heads × head size × 2 × 2
+   * bytes. Counted in the RAM budget, since at 8192 tokens it can rival the
+   * weights.
+   */
+  kvBytesPerToken: z.number().int().positive(),
+  /** A vision projector loaded next to the weights, so the model reads images. */
+  vision: z
+    .object({
+      mmproj: fileSchema,
+      /** Caps the tokens one image costs; llama.cpp downscales to fit. */
+      imageMaxTokens: z.number().int().positive(),
+    })
+    .optional(),
+  embedding: z
+    .object({
+      dimensions: z.number().int().positive(),
+      /** Prepended to a search query, as the model was trained. */
+      queryPrefix: z.string(),
+      /** Prepended to a document passage. */
+      documentPrefix: z.string(),
+    })
+    .optional(),
   /** Qwen3-style models that think before answering unless told not to. */
   thinking: z.boolean(),
   defaultSampling: samplingSchema,
@@ -67,6 +101,12 @@ export const catalogSchema = z
   .superRefine((catalog, ctx) => {
     const seen = new Set<string>();
     for (const model of catalog.models) {
+      if ((model.kind === 'embedding') !== (model.embedding !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${model.id}: embedding settings belong to embedding models only`,
+        });
+      }
       if (seen.has(model.id)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

@@ -42,9 +42,51 @@ export const MIGRATIONS: string[] = [
     tokenCount INTEGER,
     stoppedByUser INTEGER NOT NULL DEFAULT 0,
     error TEXT,
+    -- JSON: the document passages an answer was given, for source chips.
+    sources TEXT,
     createdAt INTEGER NOT NULL
   );
   CREATE INDEX messages_chat ON messages(chatId, id);
+
+  -- Files people attach. A draft has no chat or message yet; sending moves
+  -- it under its chat. path and thumbPath are relative to the attachments
+  -- folder, because the app container moves on updates.
+  CREATE TABLE attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chatId INTEGER REFERENCES chats(id) ON DELETE CASCADE,
+    messageId INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'document')),
+    name TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    path TEXT NOT NULL,
+    thumbPath TEXT,
+    sizeBytes INTEGER NOT NULL,
+    width INTEGER,
+    height INTEGER,
+    pageCount INTEGER,
+    -- Estimated tokens of a document's whole text.
+    tokenCount INTEGER,
+    status TEXT NOT NULL DEFAULT 'ready'
+      CHECK (status IN ('extracting', 'embedding', 'ready', 'failed')),
+    error TEXT,
+    createdAt INTEGER NOT NULL
+  );
+  CREATE INDEX attachments_chat ON attachments(chatId);
+  CREATE INDEX attachments_message ON attachments(messageId);
+
+  -- Passages of attached documents. embedding is a Float32 vector from
+  -- embeddingModelId, or NULL until the embedding model has indexed it.
+  CREATE TABLE document_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attachmentId INTEGER NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+    ord INTEGER NOT NULL,
+    page INTEGER,
+    text TEXT NOT NULL,
+    tokenCount INTEGER NOT NULL,
+    embedding BLOB,
+    embeddingModelId TEXT,
+    UNIQUE (attachmentId, ord)
+  );
 
   CREATE TABLE prompt_presets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

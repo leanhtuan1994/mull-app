@@ -19,6 +19,17 @@ type MullFilesNative = {
   }>;
   clearCaches(): Promise<number>;
   diskSpace(): Promise<{ free: number; total: number }>;
+  attachmentsDirectory(): Promise<string>;
+  /** A JPEG no larger than `maxSide` on its longer side, upright. */
+  resizeImage(
+    path: string,
+    outPath: string,
+    maxSide: number,
+    quality: number
+  ): Promise<{ width: number; height: number }>;
+  /** Text of each page, 1-based; empty strings for pages without a text layer. */
+  pdfText(path: string): Promise<{ page: number; text: string }[]>;
+  readText(path: string): Promise<string>;
 };
 
 export const MullFiles = requireNativeModule<MullFilesNative>('MullFiles');

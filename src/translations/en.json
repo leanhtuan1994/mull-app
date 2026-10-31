@@ -6,6 +6,26 @@
       "regenerate": "Regenerate",
       "share": "Share"
     },
+    "attachments": {
+      "add": "Attach a photo or document",
+      "camera": "Take photo",
+      "document": "Document (PDF, TXT, MD)",
+      "document_prompt": "Summarize this document.",
+      "failed": "Could not add this file.",
+      "image_prompt": "Describe this image. If it contains text, transcribe it.",
+      "indexing": "Indexing… {{percent}}",
+      "library": "Photo library",
+      "needs_embedder": "This document is long. Download the document model so Mull finds the relevant passages instead of only matching words.",
+      "no_text": "This PDF is a scan; Mull cannot read it yet.",
+      "open_image": "View image {{name}}",
+      "pages": "{{count}} pages",
+      "reading": "Reading the document…",
+      "remove": "Remove {{name}}",
+      "too_large": "The document is larger than 20 MB. Choose a smaller file.",
+      "too_many_documents": "A message can carry up to {{count}} documents.",
+      "too_many_images": "This model reads up to {{count}} images per message.",
+      "unreadable": "This file cannot be read."
+    },
     "composer": {
       "label": "Message",
       "placeholder": "Message {{model}}",
@@ -20,9 +40,28 @@
       "load_title": "Couldn't start the model",
       "memory_body": "iOS reported low memory, so Mull released the model. A smaller model will run more reliably.",
       "memory_title": "iPhone is low on memory",
-      "switch_model": "Switch model"
+      "switch_model": "Switch model",
+      "too_long": "This message with its images and documents is longer than the model can read. Remove an image or pick a model with a larger context."
     },
     "loading_model": "Starting the model…",
+    "markdown": {
+      "a11y": {
+        "bullet": "Bullet point",
+        "equation": "Math: {{latex}}",
+        "headings": "Headings",
+        "images": "Images",
+        "links": "Links",
+        "nested_bullet": "Nested bullet point",
+        "nested_ordered_item": "Nested list item {{index}}",
+        "nested_quote": "Nested blockquote",
+        "ordered_item": "List item {{index}}",
+        "quote": "Blockquote",
+        "table_row": "Row {{index}}: {{content}}"
+      },
+      "image": "[Web image, not loaded: {{alt}}]",
+      "open_link": "Open",
+      "open_link_title": "Open a link outside Mull?"
+    },
     "metrics": "{{tps}} tok/s · {{tokens}} tokens",
     "metrics_tokens": "{{tokens}} tokens",
     "new_chat": "New chat",
@@ -34,6 +73,15 @@
     "open_drawer": "Open sidebar",
     "pick_model": "Choose model, using {{model}}",
     "private_note": "Private · runs on this iPhone",
+    "sources": {
+      "cited": "Sources",
+      "consulted": "Consulted",
+      "missing": "This passage cannot be opened. The document may have been deleted.",
+      "name_page": "{{name}} · p. {{page}}",
+      "open": "Open source {{index}}, {{name}}",
+      "page": "page {{page}}",
+      "title": "Passage in the document"
+    },
     "stopped": "Stopped",
     "suggestions": {
       "explain_body": "what model quantization is",
@@ -49,6 +97,11 @@
       "summarize_prompt": "Summarize this article:\n",
       "summarize_title": "Summarize"
     },
+    "vision": {
+      "offer": "{{current}} cannot read images. {{model}} reads images and the text in them ({{size}}).",
+      "unsupported": "{{current}} cannot read images, and this iPhone lacks the memory for a vision model.",
+      "use": "Use {{model}} for this chat"
+    },
     "welcome_body": "{{model}} runs on this iPhone. What you type never leaves the device.",
     "welcome_title": "What's on your mind?"
   },
@@ -63,7 +116,11 @@
   },
   "dev": {
     "engine_title": "Engine playground",
-    "gallery_title": "Component gallery"
+    "gallery_title": "Component gallery",
+    "markdown_replay": "Replay as a stream",
+    "markdown_title": "Markdown test",
+    "retrieval_title": "Retrieval test",
+    "seed_chat_title": "Long chat for scroll tests"
   },
   "downloads": {
     "active": "{{count}} downloading",
@@ -87,6 +144,7 @@
     "not_enough_space": "Free up {{size}} more to download this model.",
     "not_enough_space_title": "Not enough storage",
     "progress_of": "{{done}} / {{total}} · Cancel",
+    "ready_for_documents": "Ready for documents",
     "start_chat": "Start chatting",
     "verifying": "Checking the file…"
   },
@@ -118,7 +176,8 @@
     "reasoning": "Reasoning",
     "small": "Compact",
     "smallest": "Smallest",
-    "vietnamese": "Good Vietnamese"
+    "vietnamese": "Good Vietnamese",
+    "vision": "Reads images"
   },
   "model_picker": {
     "footnote": "Switching models releases the current one from memory. Chat history stays.",
@@ -140,6 +199,8 @@
     "filter_all": "All",
     "filter_mine": "On this iPhone",
     "fits": "Runs well on this iPhone",
+    "for_documents": "For documents",
+    "for_documents_footer": "Mull uses this model to read long documents you attach. It does not chat.",
     "format": "Format",
     "in_use": "In use",
     "in_use_badge": "IN USE",

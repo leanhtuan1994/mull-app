@@ -13,7 +13,7 @@ import {
   Text,
   View,
 } from '@/components/ui';
-import { findCatalogModel } from '@/features/models/catalog';
+import { findCatalogModel, totalBytes } from '@/features/models/catalog';
 import {
   fitsDevice,
   minimumRamGB,
@@ -38,7 +38,7 @@ export default function ModelDetailSheet() {
   const fits = fitsDevice(model, device.totalBytes);
   const stats = [
     { label: t('models.params'), value: `${formatParams(model.params)}B` },
-    { label: t('models.download_size'), value: formatBytes(model.sizeBytes) },
+    { label: t('models.download_size'), value: formatBytes(totalBytes(model)) },
     {
       label: t('models.context'),
       value: t('models.context_value', {

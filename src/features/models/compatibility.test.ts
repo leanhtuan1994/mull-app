@@ -1,4 +1,4 @@
-import { getCatalogModels } from './catalog';
+import { getCatalogModels, getChatModels } from './catalog';
 import {
   deviceRamGB,
   fitsDevice,
@@ -23,8 +23,30 @@ describe('memory budget', () => {
     expect(memoryBudgetGB(ram * GB)).toBeCloseTo(budget, 2);
   });
 
-  it('adds 0.3 GB of runtime overhead to the file size', () => {
-    expect(modelCostGB({ sizeBytes: 2 * GB })).toBeCloseTo(2.3, 5);
+  it('adds the KV cache at full context and 0.3 GB of buffers', () => {
+    const model = {
+      sizeBytes: 2 * GB,
+      contextTokens: 4096,
+      kvBytesPerToken: 131072,
+    };
+    expect(modelCostGB(model)).toBeCloseTo(2.8, 5);
+  });
+
+  it('counts the vision projector', () => {
+    const model = {
+      sizeBytes: 2 * GB,
+      contextTokens: 1024,
+      kvBytesPerToken: 1024,
+      vision: {
+        mmproj: {
+          url: 'https://x/m.gguf',
+          sha256: '0'.repeat(64),
+          sizeBytes: GB / 2,
+        },
+        imageMaxTokens: 512,
+      },
+    };
+    expect(modelCostGB(model)).toBeCloseTo(2 + 0.5 + 1 / 1024 + 0.3, 5);
   });
 });
 
@@ -44,10 +66,17 @@ describe('fitsDevice', () => {
     for (const m of models) expect(fitsDevice(m, 8 * GB)).toBe(true);
   });
 
-  it('prefers minRamGB over the formula', () => {
-    const tiny = { sizeBytes: 0.1 * GB, minRamGB: 8 };
+  it('treats minRamGB as a floor on top of the budget', () => {
+    const tiny = {
+      sizeBytes: 0.1 * GB,
+      contextTokens: 2048,
+      kvBytesPerToken: 1,
+      minRamGB: 8,
+    };
     expect(fitsDevice(tiny, 6 * GB)).toBe(false);
     expect(fitsDevice(tiny, 8 * GB)).toBe(true);
+    const huge = { ...tiny, sizeBytes: 6 * GB };
+    expect(fitsDevice(huge, 8 * GB)).toBe(false);
   });
 
   it('rounds the reported RAM up to the marketed size', () => {
@@ -60,7 +89,7 @@ describe('fitsDevice', () => {
   });
 
   it('reports the RAM a model needs', () => {
-    expect(minimumRamGB(byId('llama-3.2-3b-instruct-q4km'))).toBe(5);
+    expect(minimumRamGB(byId('llama-3.2-3b-instruct-q4km'))).toBe(6);
     expect(minimumRamGB(byId('qwen3-4b-instruct-2507-q4km'))).toBe(8);
   });
 });
@@ -82,7 +111,10 @@ describe('recommendation', () => {
   });
 
   it('offers three onboarding choices with the recommendation first', () => {
-    const { models: picks, recommendedId } = onboardingChoices(models, 6 * GB);
+    const { models: picks, recommendedId } = onboardingChoices(
+      getChatModels(),
+      6 * GB
+    );
     expect(picks).toHaveLength(3);
     expect(picks[0].id).toBe(recommendedId);
     for (const m of picks) expect(fitsDevice(m, 6 * GB)).toBe(true);

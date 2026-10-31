@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
-import { chat, llm } from '@/features/services';
+import { chat, ingest, llm } from '@/features/services';
 
 /** Release the model after this long in the background; reload lazily on return. */
 export const BACKGROUND_UNLOAD_MS = 60_000;
@@ -19,6 +19,8 @@ export function useAppLifecycle() {
       if (state === 'background') {
         backgroundSince ??= Date.now();
         void chat.stop();
+        // iOS does not allow GPU work in the background.
+        ingest.pause();
         unloadTimer ??= setTimeout(() => {
           unloadTimer = null;
           void llm.unload();
@@ -26,6 +28,7 @@ export function useAppLifecycle() {
       } else if (state === 'active') {
         if (unloadTimer) clearTimeout(unloadTimer);
         unloadTimer = null;
+        void ingest.resume();
         // iOS suspends JS timers in the background, so check the clock too.
         if (
           backgroundSince &&

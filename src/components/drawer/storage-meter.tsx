@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Pressable } from 'react-native';
 
 import { Text, View } from '@/components/ui';
-import { getCatalogModels } from '@/features/models/catalog';
+import {
+  getCatalogModels,
+  totalBytes as modelTotalBytes,
+} from '@/features/models/catalog';
 import { useModels } from '@/features/services';
 import { formatBytes } from '@/lib/format';
 
@@ -23,7 +26,7 @@ export function StorageMeter({ onPress }: { onPress: () => void }) {
 
   const used = getCatalogModels()
     .filter((m) => downloadedIds.includes(m.id))
-    .reduce((sum, m) => sum + m.sizeBytes, 0);
+    .reduce((sum, m) => sum + modelTotalBytes(m), 0);
   const share =
     totalBytes > 0 ? Math.max(used > 0 ? 0.02 : 0, used / totalBytes) : 0;
 

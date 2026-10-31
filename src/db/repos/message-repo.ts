@@ -1,6 +1,12 @@
 import { normalizeVi } from '@/lib/normalize-vi';
 
-import type { Db, MessageRole, MessageRow, SqlValue } from '../types';
+import type {
+  Db,
+  MessageRole,
+  MessageRow,
+  MessageSource,
+  SqlValue,
+} from '../types';
 
 export type MessageMetrics = {
   tokensPerSecond?: number | null;
@@ -101,6 +107,14 @@ export function createMessageRepo(db: Db) {
 
     async remove(id: number) {
       await db.runAsync('DELETE FROM messages WHERE id = ?', [id]);
+    },
+
+    /** The document passages an answer was given. */
+    async setSources(id: number, sources: MessageSource[]) {
+      await db.runAsync('UPDATE messages SET sources = ? WHERE id = ?', [
+        sources.length ? JSON.stringify(sources) : null,
+        id,
+      ]);
     },
   };
 }

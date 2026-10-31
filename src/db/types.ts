@@ -1,4 +1,4 @@
-export type SqlValue = string | number | null;
+export type SqlValue = string | number | null | Uint8Array;
 
 /**
  * The slice of expo-sqlite's `SQLiteDatabase` the repositories use. Tests
@@ -55,8 +55,54 @@ export type MessageRow = {
   tokenCount: number | null;
   stoppedByUser: number;
   error: string | null;
+  /** JSON array of `MessageSource`. */
+  sources: string | null;
   createdAt: number;
 };
+
+/** A passage an answer was given, numbered as the model saw it. */
+export type MessageSource = {
+  n: number;
+  chunkId: number;
+  attachmentId: number;
+  name: string;
+  page: number | null;
+};
+
+export type AttachmentKind = 'image' | 'document';
+
+export type AttachmentStatus = 'extracting' | 'embedding' | 'ready' | 'failed';
+
+export type AttachmentRow = {
+  id: number;
+  chatId: number | null;
+  messageId: number | null;
+  kind: AttachmentKind;
+  name: string;
+  mime: string;
+  path: string;
+  thumbPath: string | null;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  pageCount: number | null;
+  tokenCount: number | null;
+  status: AttachmentStatus;
+  error: string | null;
+  createdAt: number;
+};
+
+export type ChunkRow = {
+  id: number;
+  attachmentId: number;
+  ord: number;
+  page: number | null;
+  text: string;
+  tokenCount: number;
+};
+
+/** A passage with its vector, for search. */
+export type IndexedChunk = ChunkRow & { embedding: Float32Array | null };
 
 export type PresetRow = {
   id: number;

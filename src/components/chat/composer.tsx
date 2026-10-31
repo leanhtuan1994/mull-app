@@ -1,7 +1,13 @@
+import { Image } from 'expo-image';
 import { cn } from 'heroui-native';
 import { type Ref, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, TextInput, type TextInputInstance } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  TextInput,
+  type TextInputInstance,
+} from 'react-native';
 
 import {
   GlassBackground,
@@ -29,6 +35,18 @@ type ComposerProps = {
   onPickModel?: () => void;
   /** First keystroke: a good moment to start loading the model. */
   onStartTyping?: () => void;
+  /** Draft attachments shown above the field. */
+  attachments?: ComposerAttachment[];
+  onAddAttachment?: () => void;
+  onRemoveAttachment?: (id: number) => void;
+};
+
+export type ComposerAttachment = {
+  id: number;
+  kind: 'image' | 'document';
+  name: string;
+  /** file:// URL of the thumbnail, for images. */
+  thumbUri?: string;
 };
 
 /**
@@ -48,11 +66,15 @@ export function Composer({
   model,
   onPickModel,
   onStartTyping,
+  attachments = [],
+  onAddAttachment,
+  onRemoveAttachment,
 }: ComposerProps) {
   const { t } = useTranslation();
   const colors = useThemeColors();
   const [typed, setTyped] = useState(false);
-  const canSend = canSendDraft(value, template) && !disabled;
+  const canSend =
+    (canSendDraft(value, template) || attachments.length > 0) && !disabled;
 
   return (
     <View
@@ -69,7 +91,23 @@ export function Composer({
           tintColor={`${colors.surface}b3`}
         />
         {/* Keeps the draft readable over messages scrolling under the glass. */}
-        <View className="absolute inset-0 bg-surface/60" />
+        <View className="absolute inset-0 bg-surface/75" />
+        {attachments.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="gap-2.5 px-1.5 pt-2"
+            testID="composer-attachments"
+          >
+            {attachments.map((attachment) => (
+              <AttachmentChip
+                key={attachment.id}
+                attachment={attachment}
+                onRemove={() => onRemoveAttachment?.(attachment.id)}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
         <TextInput
           ref={ref}
           maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -90,31 +128,44 @@ export function Composer({
           className="max-h-40 min-h-11 px-3 pt-2.5 pb-1 text-[17px] leading-[22px] text-foreground"
         />
         <View className="min-h-11 flex-row items-center justify-between gap-2">
-          {model ? (
-            <Pressable
-              testID="model-pill"
-              accessibilityRole="button"
-              accessibilityLabel={t('chat.pick_model', { model: model.name })}
-              onPress={onPickModel}
-              hitSlop={4}
-              className="h-9 shrink flex-row items-center gap-1.5 rounded-full pr-2.5 pl-1.5 active:bg-fill"
-            >
-              <ModelMonogram
-                name={model.name}
-                family={model.family}
-                size={24}
-              />
-              <Text
-                numberOfLines={1}
-                className="shrink text-[15px] font-medium text-label-secondary"
+          <View className="shrink flex-row items-center gap-1">
+            {onAddAttachment ? (
+              <Pressable
+                testID="composer-add"
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.attachments.add')}
+                onPress={onAddAttachment}
+                disabled={disabled}
+                hitSlop={4}
+                className="size-9 items-center justify-center rounded-full bg-fill active:scale-[0.94]"
               >
-                {model.name}
-              </Text>
-              <Icon name="chevron-down" size={13} className="text-muted" />
-            </Pressable>
-          ) : (
-            <View />
-          )}
+                <Icon name="add" size={22} className="text-foreground" />
+              </Pressable>
+            ) : null}
+            {model ? (
+              <Pressable
+                testID="model-pill"
+                accessibilityRole="button"
+                accessibilityLabel={t('chat.pick_model', { model: model.name })}
+                onPress={onPickModel}
+                hitSlop={4}
+                className="h-9 shrink flex-row items-center gap-1.5 rounded-full pr-2.5 pl-1.5 active:bg-fill"
+              >
+                <ModelMonogram
+                  name={model.name}
+                  family={model.family}
+                  size={24}
+                />
+                <Text
+                  numberOfLines={1}
+                  className="shrink text-[15px] font-medium text-label-secondary"
+                >
+                  {model.name}
+                </Text>
+                <Icon name="chevron-down" size={13} className="text-muted" />
+              </Pressable>
+            ) : null}
+          </View>
           {generating ? (
             <Pressable
               testID="composer-stop"
@@ -149,6 +200,54 @@ export function Composer({
           )}
         </View>
       </View>
+    </View>
+  );
+}
+
+/** A draft attachment: a thumbnail or a document chip, with a remove button. */
+function AttachmentChip({
+  attachment,
+  onRemove,
+}: {
+  attachment: ComposerAttachment;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View className="relative" testID={`composer-attachment-${attachment.id}`}>
+      {attachment.kind === 'image' && attachment.thumbUri ? (
+        <Image
+          source={{ uri: attachment.thumbUri }}
+          accessibilityLabel={attachment.name}
+          style={{ width: 56, height: 56, borderRadius: 14 }}
+          contentFit="cover"
+        />
+      ) : (
+        <View className="h-14 max-w-[180px] flex-row items-center gap-2 rounded-[14px] bg-fill pr-3 pl-2.5">
+          <Icon
+            name="document-text-outline"
+            size={22}
+            className="text-accent-text"
+          />
+          <Text
+            numberOfLines={2}
+            className="shrink text-[13px] leading-[17px] text-foreground"
+          >
+            {attachment.name}
+          </Text>
+        </View>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('chat.attachments.remove', {
+          name: attachment.name,
+        })}
+        onPress={onRemove}
+        hitSlop={10}
+        className="absolute -top-1.5 -right-1.5 size-6 items-center justify-center rounded-full bg-invert"
+      >
+        <Icon name="close" size={14} className="text-invert-foreground" />
+      </Pressable>
     </View>
   );
 }

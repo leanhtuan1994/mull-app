@@ -1,6 +1,6 @@
 import type { SamplingParams } from './engine';
 import { createLlmStore } from './llm-store';
-import { MockEngine } from './mock-engine';
+import { MockEmbeddingEngine, MockEngine } from './mock-engine';
 
 const SAMPLING: SamplingParams = {
   temperature: 0.8,
@@ -120,5 +120,104 @@ describe('llm store', () => {
       status: 'error',
       error: { kind: 'memory', modelId: 'qwen' },
     });
+  });
+
+  describe('embedding', () => {
+    const EMB = { id: 'emb', path: '/emb.gguf', contextTokens: 512 };
+
+    it('loads the embedding model on first use and returns vectors', async () => {
+      const embedder = new MockEmbeddingEngine();
+      const llm = createLlmStore(new MockEngine(), { embedder });
+      const vectors = await llm.embed(EMB, ['một', 'hai']);
+      expect(vectors).toHaveLength(2);
+      await llm.embed(EMB, ['ba']);
+      expect(embedder.events.filter((e) => e.startsWith('load'))).toEqual([
+        'load:/emb.gguf',
+      ]);
+    });
+
+    it('lets a question jump ahead of queued embedding batches', async () => {
+      const engine = new MockEngine({ reply: 'ok' });
+      const embedder = new MockEmbeddingEngine({ delayMs: 5 });
+      const llm = createLlmStore(engine, { embedder });
+      await llm.ensureLoaded(QWEN);
+      const order: string[] = [];
+      const batches = [1, 2, 3].map((n) =>
+        llm.embed(EMB, ['đoạn']).then(() => order.push(`embed${n}`))
+      );
+      const answer = llm
+        .generate(ASK, SAMPLING, () => {})
+        .then(() => order.push('answer'));
+      await Promise.all([...batches, answer]);
+      // At most the batch already running finishes before the answer.
+      expect(order.indexOf('answer')).toBeLessThanOrEqual(1);
+    });
+
+    it('releases the chat model first when both do not fit', async () => {
+      const engine = new MockEngine();
+      const embedder = new MockEmbeddingEngine();
+      const llm = createLlmStore(engine, {
+        embedder,
+        fitsTogether: () => false,
+      });
+      await llm.ensureLoaded(QWEN);
+      await llm.embed(EMB, ['đoạn']);
+      expect(engine.isLoaded).toBe(false);
+      await llm.ensureLoaded(QWEN);
+      expect(embedder.isLoaded).toBe(false);
+    });
+
+    it('reloads the chat model when an embed released it before answering', async () => {
+      const engine = new MockEngine({ reply: 'ok' });
+      const embedder = new MockEmbeddingEngine();
+      const llm = createLlmStore(engine, {
+        embedder,
+        fitsTogether: () => false,
+      });
+      await llm.ensureLoaded(QWEN);
+      // The question's vector is computed between loading and answering.
+      await llm.embed(EMB, ['câu hỏi'], { priority: 'normal' });
+      expect(engine.isLoaded).toBe(false);
+      const result = await llm.generate(ASK, SAMPLING, () => {});
+      expect(result.text).toBe('ok');
+      expect(llm.store.getState().loadedModelId).toBe('qwen');
+    });
+
+    it('skips a queued embed that should no longer run', async () => {
+      const llm = createLlmStore(new MockEngine(), {
+        embedder: new MockEmbeddingEngine(),
+      });
+      await expect(
+        llm.embed(EMB, ['x'], { shouldRun: () => false })
+      ).rejects.toThrow('Embedding skipped');
+    });
+
+    it('drops the embedding model first on a memory warning', async () => {
+      const engine = new MockEngine();
+      const embedder = new MockEmbeddingEngine();
+      const llm = createLlmStore(engine, { embedder });
+      await llm.ensureLoaded(QWEN);
+      await llm.embed(EMB, ['đoạn']);
+      await llm.handleMemoryWarning();
+      expect(embedder.isLoaded).toBe(false);
+      expect(engine.isLoaded).toBe(true);
+      expect(llm.store.getState().error).toBeNull();
+      await llm.handleMemoryWarning();
+      expect(engine.isLoaded).toBe(false);
+      expect(llm.store.getState().error?.kind).toBe('memory');
+    });
+  });
+
+  it('counts tokens only on a loaded model, after pending work', async () => {
+    const engine = new MockEngine();
+    const llm = createLlmStore(engine);
+    expect(await llm.countTokens('một hai')).toBeNull();
+    await llm.ensureLoaded(QWEN);
+    const unloaded = llm.unload();
+    // Queued behind the unload, so it never tokenizes a released model.
+    expect(await llm.countTokens('một hai')).toBeNull();
+    await unloaded;
+    await llm.ensureLoaded(QWEN);
+    expect(await llm.countTokens('một hai', ['/a.jpg'])).toBe(66);
   });
 });

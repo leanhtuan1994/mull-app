@@ -1,3 +1,4 @@
+import { totalBytes } from './catalog';
 import type { CatalogModel } from './catalog-schema';
 
 const GB = 1024 ** 3;
@@ -16,25 +17,31 @@ export function memoryBudgetGB(totalRamBytes: number): number {
   return Math.max(0, ramGB * 0.6 * 0.95 - 0.5);
 }
 
-/** Weights plus about 0.3 GB for the KV cache and runtime buffers. */
-export function modelCostGB(model: Pick<CatalogModel, 'sizeBytes'>): number {
-  return model.sizeBytes / GB + 0.3;
+type Costed = Pick<
+  CatalogModel,
+  'sizeBytes' | 'vision' | 'contextTokens' | 'kvBytesPerToken' | 'minRamGB'
+>;
+
+/** Weights, vision projector and KV cache at full context, plus 0.3 GB of buffers. */
+export function modelCostGB(model: Omit<Costed, 'minRamGB'>): number {
+  const kvBytes = model.contextTokens * model.kvBytesPerToken;
+  return (totalBytes(model) + kvBytes) / GB + 0.3;
 }
 
 /** The smallest whole number of GB of RAM on which the model fits the budget. */
-export function minimumRamGB(
-  model: Pick<CatalogModel, 'sizeBytes' | 'minRamGB'>
-) {
-  if (model.minRamGB) return model.minRamGB;
+export function minimumRamGB(model: Costed) {
   // Invert the budget formula, then round up to the next GB.
-  return Math.ceil((modelCostGB(model) + 0.5) / (0.6 * 0.95));
+  const byCost = Math.ceil((modelCostGB(model) + 0.5) / (0.6 * 0.95));
+  return Math.max(model.minRamGB ?? 0, byCost);
 }
 
-export function fitsDevice(
-  model: Pick<CatalogModel, 'sizeBytes' | 'minRamGB'>,
-  totalRamBytes: number
-): boolean {
-  if (model.minRamGB) return deviceRamGB(totalRamBytes) >= model.minRamGB;
+/**
+ * The budget always applies. `minRamGB` adds a floor for models the formula
+ * underrates, never a way around the budget.
+ */
+export function fitsDevice(model: Costed, totalRamBytes: number): boolean {
+  if (model.minRamGB && deviceRamGB(totalRamBytes) < model.minRamGB)
+    return false;
   return modelCostGB(model) <= memoryBudgetGB(totalRamBytes);
 }
 
@@ -42,9 +49,10 @@ export function fitsDevice(
  * The model to badge as recommended: the largest one that still leaves at
  * least 15% of the budget free.
  */
-export function recommendedModel<
-  T extends Pick<CatalogModel, 'sizeBytes' | 'minRamGB'>,
->(models: T[], totalRamBytes: number): T | undefined {
+export function recommendedModel<T extends Costed>(
+  models: T[],
+  totalRamBytes: number
+): T | undefined {
   const budget = memoryBudgetGB(totalRamBytes);
   return models
     .filter(
@@ -54,9 +62,7 @@ export function recommendedModel<
 }
 
 /** Up to `count` models for onboarding: the recommended one first, then the next largest that fit. */
-export function onboardingChoices<
-  T extends Pick<CatalogModel, 'id' | 'sizeBytes' | 'minRamGB'>,
->(
+export function onboardingChoices<T extends Costed & Pick<CatalogModel, 'id'>>(
   models: T[],
   totalRamBytes: number,
   count = 3
@@ -74,9 +80,7 @@ export function onboardingChoices<
 
 export type ModelGroups<T> = { onDevice: T[]; runsWell: T[]; needsMore: T[] };
 
-export function groupModels<
-  T extends Pick<CatalogModel, 'id' | 'sizeBytes' | 'minRamGB'>,
->(
+export function groupModels<T extends Costed & Pick<CatalogModel, 'id'>>(
   models: T[],
   totalRamBytes: number,
   downloadedIds: ReadonlySet<string>

@@ -16,7 +16,7 @@ import {
   useHeaderInset,
   View,
 } from '@/components/ui';
-import { findCatalogModel } from '@/features/models/catalog';
+import { findCatalogModel, totalBytes } from '@/features/models/catalog';
 import {
   readStorageStats,
   type StorageStats,
@@ -41,7 +41,9 @@ export default function StorageScreen() {
       .idlePartials()
       .then((partial) =>
         readStorageStats(MullFiles, {
-          complete: Object.values(models.store.getState().paths),
+          complete: models.store
+            .getState()
+            .downloadedIds.flatMap((id) => models.finalFiles(id)),
           partial,
         })
       )
@@ -58,7 +60,7 @@ export default function StorageScreen() {
   const models = downloadedIds
     .map((id) => findCatalogModel(id))
     .filter((m) => m !== undefined)
-    .sort((a, b) => b.sizeBytes - a.sizeBytes);
+    .sort((a, b) => totalBytes(b) - totalBytes(a));
 
   const remove = (id: string, name: string) => {
     Alert.alert(t('storage.remove_confirm', { model: name }), undefined, [
@@ -201,7 +203,7 @@ export default function StorageScreen() {
                       {model.name}
                     </Text>
                     <Text className="text-[13px] text-muted">
-                      {formatBytes(model.sizeBytes)}
+                      {formatBytes(totalBytes(model))}
                     </Text>
                   </View>
                   {inUse ? (

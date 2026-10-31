@@ -6,7 +6,7 @@ import { useSettings } from '@/features/settings/settings-store';
 export function useActiveModel() {
   const modelId = useChat((s) => s.modelId);
   const defaultModelId = useSettings((s) => s.defaultModelId);
-  const downloadedIds = useModels((s) => s.downloadedIds);
+  const downloadedIds = useModels((s) => s.downloadedChatIds);
   for (const id of [modelId, defaultModelId]) {
     if (id && downloadedIds.includes(id)) return findCatalogModel(id);
   }

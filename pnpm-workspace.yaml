@@ -3,3 +3,5 @@ ignoredBuiltDependencies:
 onlyBuiltDependencies:
   # Downloads its prebuilt llama.cpp xcframework (SHA-256 checked) on install.
   - llama.rn
+  # Downloads tree-sitter grammars and RaTeX for markdown code and math (SHA-256 checked).
+  - react-native-enriched-markdown

@@ -1,5 +1,8 @@
+import { normalizeVi } from '@/lib/normalize-vi';
+
 import {
   type ChatMessage,
+  type EmbeddingEngine,
   EngineNotLoadedError,
   type GenerateResult,
   type LlmEngine,
@@ -8,7 +11,7 @@ import {
   type TokenListener,
 } from './engine';
 
-const DEFAULT_REPLY =
+export const DEFAULT_REPLY =
   'Đây là câu trả lời mẫu từ engine giả lập của Mull. Mọi thứ được tạo ngay trên máy, ' +
   'nên tin nhắn của bạn không rời khỏi iPhone.\n\n' +
   '- Engine giả lập dùng cho simulator và cho test.\n' +
@@ -135,7 +138,56 @@ export class MockEngine implements LlmEngine {
     this.loadedPath = null;
   }
 
-  async countTokens(text: string) {
-    return mockTokenize(text).length;
+  async countTokens(text: string, imagePaths: string[] = []) {
+    return mockTokenize(text).length + imagePaths.length * MOCK_IMAGE_TOKENS;
+  }
+}
+
+/** What one image costs in the mock engine's token counts. */
+export const MOCK_IMAGE_TOKENS = 64;
+
+const MOCK_DIMENSIONS = 64;
+
+/**
+ * Hashes each accent-folded word into a fixed-size bag of words, so passages
+ * that share words with a question score higher, as with a real model.
+ */
+export function mockEmbedding(text: string): number[] {
+  const vector = new Array<number>(MOCK_DIMENSIONS).fill(0);
+  for (const word of normalizeVi(text).split(/[^\p{L}\p{N}]+/u)) {
+    if (word.length < 2) continue;
+    let hash = 0;
+    for (const char of word) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    vector[hash % MOCK_DIMENSIONS] += 1;
+  }
+  const length = Math.hypot(...vector) || 1;
+  return vector.map((v) => v / length);
+}
+
+export class MockEmbeddingEngine implements EmbeddingEngine {
+  private loadedPath: string | null = null;
+  readonly events: string[] = [];
+
+  constructor(private readonly options: { delayMs?: number } = {}) {}
+
+  get isLoaded() {
+    return this.loadedPath !== null;
+  }
+
+  async load(modelPath: string) {
+    this.events.push(`load:${modelPath}`);
+    this.loadedPath = modelPath;
+  }
+
+  async embed(text: string) {
+    if (!this.loadedPath) throw new EngineNotLoadedError();
+    this.events.push('embed');
+    await sleep(this.options.delayMs ?? 0);
+    return mockEmbedding(text);
+  }
+
+  async unload() {
+    this.events.push('unload');
+    this.loadedPath = null;
   }
 }

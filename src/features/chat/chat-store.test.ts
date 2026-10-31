@@ -1,5 +1,6 @@
 import { createRepos, type Repos } from '@/db/repos';
 import { createTestDb } from '@/db/test-db';
+import { DOCUMENT_NOTE } from '@/features/attachments/document-context';
 import { createLlmStore } from '@/features/llm/llm-store';
 import { MockEngine } from '@/features/llm/mock-engine';
 import {
@@ -8,13 +9,16 @@ import {
   loadCatalog,
 } from '@/features/models/catalog';
 
-import { createChatStore } from './chat-store';
+import { createChatStore, FORMAT_NOTE } from './chat-store';
 import type { ResponseLength } from './context-budget';
 
 const QWEN = 'qwen3-0.6b-q4km';
 const GEMMA = 'gemma-3-1b-it-q4km';
 
-async function setup(engine = new MockEngine({ reply: 'Xin chào bạn' })) {
+async function setup(
+  engine = new MockEngine({ reply: 'Xin chào bạn' }),
+  extra: Partial<Parameters<typeof createChatStore>[0]> = {}
+) {
   const repos: Repos = createRepos(await createTestDb());
   await repos.models.syncCatalog(
     getCatalogModels(),
@@ -44,6 +48,7 @@ async function setup(engine = new MockEngine({ reply: 'Xin chào bạn' })) {
     findModel: (id) => findCatalogModel(id),
     modelPath: (id) => paths[id],
     settings: () => settings,
+    ...extra,
   });
   chat.startNew();
   return { repos, llm, chat, engine, settings, paths };
@@ -86,7 +91,7 @@ describe('chat store', () => {
     const call = engine.calls.find((c) => c.sampling.maxTokens !== 1)!;
     expect(call.messages[0]).toEqual({
       role: 'system',
-      content: 'Bạn là trợ lý hữu ích.',
+      content: `${FORMAT_NOTE}\n\nBạn là trợ lý hữu ích.`,
     });
     expect(call.sampling).toMatchObject({ temperature: 1.2, maxTokens: 256 });
   });
@@ -246,5 +251,155 @@ describe('chat store', () => {
     await chat.send('x');
     // Six tokens in one tick schedule a single frame.
     expect(frames).toHaveLength(1);
+  });
+
+  it('puts document passages in the question and saves their sources', async () => {
+    const asked: { budgetTokens: number; question: string }[] = [];
+    const engine = new MockEngine({ reply: 'Theo [1], họp lúc chín giờ.' });
+    const { chat, repos } = await setup(engine, {
+      documentContext: async (input) => {
+        asked.push(input);
+        return {
+          block:
+            '<tài_liệu>\n[1] (lich.pdf, tr. 1)\nHọp lúc 9 giờ.\n</tài_liệu>',
+          sources: [
+            { n: 1, chunkId: 5, attachmentId: 2, name: 'lich.pdf', page: 1 },
+          ],
+          needsEmbeddings: false,
+        };
+      },
+    });
+    const chatId = await chat.send('Mấy giờ họp?');
+    const call = engine.calls.find((c) => c.sampling.maxTokens !== 1)!;
+    const system = call.messages[0].content as string;
+    expect(system).toContain(DOCUMENT_NOTE);
+    const question = call.messages.at(-1)!.content as string;
+    expect(question.startsWith('<tài_liệu>')).toBe(true);
+    expect(question.endsWith('Mấy giờ họp?')).toBe(true);
+    // Qwen3 0.6B: 8192 tokens, minus the reserve, 40% of the rest.
+    expect(asked[0]).toMatchObject({
+      question: 'Mấy giờ họp?',
+      budgetTokens: 2457,
+    });
+
+    const answer = chat.store.getState().messages.at(-1)!;
+    expect(answer.sources).toEqual([
+      expect.objectContaining({ n: 1, chunkId: 5 }),
+    ]);
+    const saved = await repos.messages.listByChat(chatId!);
+    expect(saved[0].content).toBe('Mấy giờ họp?');
+  });
+
+  describe('images', () => {
+    const VL = 'qwen3-vl-2b-instruct-q4km';
+
+    async function visionSetup() {
+      const engine = new MockEngine({ reply: 'Một con mèo.' });
+      const ctx = await setup(engine, {
+        mmprojPath: (id) => (id === VL ? '/m/vl/mmproj.gguf' : undefined),
+        attachmentPath: (relative) => `/files/${relative}`,
+        attachDrafts: async (ids, target) => {
+          const repos = ctx.repos;
+          const rows = await repos.attachments.listByIds(ids);
+          await repos.attachments.attach(
+            rows.map((r) => ({ id: r.id, path: r.path, thumbPath: null })),
+            target
+          );
+        },
+      });
+      ctx.paths[VL] = '/m/vl/model.gguf';
+      ctx.settings.defaultModelId = VL;
+      ctx.chat.startNew();
+      const addImage = (name: string) =>
+        ctx.repos.attachments.addDraft({
+          kind: 'image',
+          name,
+          mime: 'image/jpeg',
+          path: `drafts/${name}/image.jpg`,
+          sizeBytes: 10,
+        });
+      return { ...ctx, engine, addImage };
+    }
+
+    const lastAnswerCall = (engine: MockEngine) =>
+      engine.calls.filter((c) => c.sampling.maxTokens !== 1).at(-1)!;
+
+    it('loads the projector and sends images as message parts', async () => {
+      const { chat, engine, addImage } = await visionSetup();
+      await chat.send('Đây là gì?', [await addImage('meo')]);
+      expect(engine.events).toContain('load:/m/vl/model.gguf');
+      const question = lastAnswerCall(engine).messages.at(-1)!;
+      expect(question.content).toEqual([
+        { type: 'image', path: '/files/drafts/meo/image.jpg' },
+        { type: 'text', text: 'Đây là gì?' },
+      ]);
+    });
+
+    it("still sends a chat's images after reopening it", async () => {
+      const { chat, engine, addImage } = await visionSetup();
+      const chatId = await chat.send('Ảnh này', [await addImage('a')]);
+      chat.startNew();
+      await chat.open(chatId!);
+      await chat.send('Còn gì nữa?');
+      const messages = lastAnswerCall(engine).messages;
+      expect(messages.some((m) => Array.isArray(m.content))).toBe(true);
+    });
+
+    it('keeps only the two latest messages with images', async () => {
+      const { chat, engine, addImage } = await visionSetup();
+      await chat.send('Một', [await addImage('x1')]);
+      await chat.send('Hai', [await addImage('x2')]);
+      await chat.send('Ba', [await addImage('x3')]);
+      const users = lastAnswerCall(engine).messages.filter(
+        (m) => m.role === 'user'
+      );
+      expect(typeof users[0].content).toBe('string');
+      expect(users[0].content).toContain('[ảnh đã gửi trước đó]');
+      expect(Array.isArray(users[1].content)).toBe(true);
+      expect(Array.isArray(users[2].content)).toBe(true);
+    });
+
+    it('gives a text-only model the words without the images', async () => {
+      const { chat, engine, addImage, settings } = await visionSetup();
+      settings.defaultModelId = QWEN;
+      chat.startNew();
+      await chat.send('Đây là gì?', [await addImage('y')]);
+      expect(lastAnswerCall(engine).messages.at(-1)!.content).toBe(
+        'Đây là gì?'
+      );
+    });
+  });
+
+  it('refuses a newest message that alone overflows the context', async () => {
+    const engine = new MockEngine({ reply: 'x' });
+    const { chat } = await setup(engine, {
+      documentContext: async () => ({
+        block: 'chữ '.repeat(20000),
+        sources: [],
+        needsEmbeddings: false,
+      }),
+    });
+    await chat.send('Hỏi');
+    expect(chat.store.getState().error).toBe('tooLong');
+    expect(engine.calls.filter((c) => c.sampling.maxTokens !== 1)).toEqual([]);
+  });
+
+  it('drops an answer when the chat was left while documents were searched', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { chat } = await setup(undefined, {
+      documentContext: async () => {
+        await gate;
+        return null;
+      },
+    });
+    const sent = chat.send('Hỏi');
+    await new Promise((r) => setTimeout(r, 10));
+    chat.startNew();
+    release();
+    await sent;
+    expect(chat.store.getState().streaming).toBeNull();
   });
 });

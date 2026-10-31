@@ -5,7 +5,7 @@ import { ScrollView, TextInput } from 'react-native';
 
 import { ProgressButton, Text, View } from '@/components/ui';
 import type { GenerateResult } from '@/features/llm/engine';
-import { findCatalogModel } from '@/features/models/catalog';
+import { findCatalogModel, getCatalogModels } from '@/features/models/catalog';
 import { getModels, isMockEngine, llm, useLlm } from '@/features/services';
 import { useThemeColors } from '@/lib/hooks/use-theme-colors';
 
@@ -72,6 +72,31 @@ export default function EngineDevScreen() {
     note(`stop() returned after ${Date.now() - asked} ms`);
   };
 
+  /** Cosine of a close and a distant Vietnamese pair, to sanity-check embeddings. */
+  const embedTest = async () => {
+    const model = getCatalogModels().find((m) => m.kind === 'embedding');
+    const modelPath = model && paths[model.id];
+    if (!model?.embedding || !modelPath) {
+      note('embedding model not downloaded');
+      return;
+    }
+    const { queryPrefix, documentPrefix } = model.embedding;
+    const started = Date.now();
+    const [query, near, far] = await llm.embed(
+      { id: model.id, path: modelPath, contextTokens: model.contextTokens },
+      [
+        `${queryPrefix}Lượng tử hoá giúp model nhẹ hơn thế nào?`,
+        `${documentPrefix}Giảm số bit cho mỗi trọng số làm file model nhỏ đi.`,
+        `${documentPrefix}Hôm nay trời Hà Nội mưa to, nhớ mang ô.`,
+      ]
+    );
+    const dot = (a: number[], b: number[]) =>
+      a.reduce((sum, v, i) => sum + v * b[i], 0);
+    note(
+      `embed ${query.length}d in ${Date.now() - started} ms · near ${dot(query, near).toFixed(3)} · far ${dot(query, far).toFixed(3)}`
+    );
+  };
+
   return (
     <>
       <Stack.Screen options={{ title: t('dev.engine_title') }} />
@@ -131,6 +156,7 @@ export default function EngineDevScreen() {
             className="flex-1"
           />
         </View>
+        <ProgressButton label="Embed test" onPress={() => void embedTest()} />
         <Text selectable className="text-[17px] leading-[25px] text-foreground">
           {output}
         </Text>

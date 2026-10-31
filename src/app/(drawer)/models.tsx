@@ -19,7 +19,7 @@ import {
   useHeaderInset,
   View,
 } from '@/components/ui';
-import { getCatalogModels } from '@/features/models/catalog';
+import { getCatalogModels, getChatModels } from '@/features/models/catalog';
 import { groupModels, memoryBudgetGB } from '@/features/models/compatibility';
 import { isActiveDownload } from '@/features/models/download-machine';
 import { useDeviceInfo } from '@/features/models/use-device-info';
@@ -48,14 +48,16 @@ export default function ModelsScreen() {
 
   const groups = useMemo(
     () =>
-      groupModels(
-        getCatalogModels(),
-        device.totalBytes,
-        new Set(downloadedIds)
-      ),
+      groupModels(getChatModels(), device.totalBytes, new Set(downloadedIds)),
     [device.totalBytes, downloadedIds]
   );
   const params = comfortableParams(device.totalBytes);
+  // Models that index documents rather than chat; shown in their own section.
+  const documentModels = getCatalogModels().filter(
+    (m) =>
+      m.kind === 'embedding' &&
+      (filter === 'all' || downloadedIds.includes(m.id))
+  );
 
   return (
     <DrawerScene>
@@ -133,6 +135,18 @@ export default function ModelsScreen() {
               testID="models-runs-well"
             >
               {groups.runsWell.map((model) => (
+                <ModelRow key={model.id} model={model} blocked={false} />
+              ))}
+            </ListSection>
+          ) : null}
+
+          {documentModels.length > 0 ? (
+            <ListSection
+              title={t('models.for_documents')}
+              footer={t('models.for_documents_footer')}
+              testID="models-for-documents"
+            >
+              {documentModels.map((model) => (
                 <ModelRow key={model.id} model={model} blocked={false} />
               ))}
             </ListSection>

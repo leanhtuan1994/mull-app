@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Pressable } from 'react-native';
 
 import { Icon, ModelMonogram, ProgressRing, Text, View } from '@/components/ui';
+import { totalBytes } from '@/features/models/catalog';
 import type { CatalogModel } from '@/features/models/catalog-schema';
 import { minimumRamGB } from '@/features/models/compatibility';
 import { downloadFraction } from '@/features/models/download-machine';
@@ -36,7 +37,7 @@ export function ModelRow({
       ? t('downloads.failed_retry')
       : t('models.row_subtitle', {
           params: formatParams(model.params),
-          size: formatBytes(model.sizeBytes),
+          size: formatBytes(totalBytes(model)),
           publisher: model.publisher,
         });
 

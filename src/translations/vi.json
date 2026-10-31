@@ -6,6 +6,26 @@
       "regenerate": "Tạo lại",
       "share": "Chia sẻ"
     },
+    "attachments": {
+      "add": "Đính kèm ảnh hoặc tài liệu",
+      "camera": "Chụp ảnh",
+      "document": "Tài liệu (PDF, TXT, MD)",
+      "document_prompt": "Tóm tắt tài liệu này.",
+      "failed": "Không thêm được tệp này.",
+      "image_prompt": "Mô tả ảnh này. Nếu ảnh có chữ, chép lại chữ đó.",
+      "indexing": "Đang lập chỉ mục… {{percent}}",
+      "library": "Ảnh trong thư viện",
+      "needs_embedder": "Tài liệu dài. Tải model đọc tài liệu để Mull tìm đúng đoạn liên quan thay vì chỉ so từ khoá.",
+      "no_text": "PDF này là ảnh scan, Mull chưa đọc được.",
+      "open_image": "Xem ảnh {{name}}",
+      "pages": "{{count}} trang",
+      "reading": "Đang đọc tài liệu…",
+      "remove": "Bỏ {{name}}",
+      "too_large": "Tài liệu lớn hơn 20 MB. Hãy chọn tệp nhỏ hơn.",
+      "too_many_documents": "Mỗi tin nhắn gửi được tối đa {{count}} tài liệu.",
+      "too_many_images": "Model này đọc được tối đa {{count}} ảnh mỗi tin nhắn.",
+      "unreadable": "Không đọc được tệp này."
+    },
     "composer": {
       "label": "Tin nhắn",
       "placeholder": "Nhắn cho {{model}}",
@@ -20,9 +40,28 @@
       "load_title": "Không khởi động được model",
       "memory_body": "iOS báo sắp hết bộ nhớ nên Mull đã giải phóng model. Model nhỏ hơn sẽ chạy ổn định hơn.",
       "memory_title": "iPhone sắp hết bộ nhớ",
-      "switch_model": "Đổi model"
+      "switch_model": "Đổi model",
+      "too_long": "Tin nhắn này cùng ảnh và tài liệu dài hơn ngữ cảnh của model. Hãy bớt ảnh hoặc chọn model có ngữ cảnh lớn hơn."
     },
     "loading_model": "Đang khởi động model…",
+    "markdown": {
+      "a11y": {
+        "bullet": "Gạch đầu dòng",
+        "equation": "Công thức: {{latex}}",
+        "headings": "Tiêu đề",
+        "images": "Ảnh",
+        "links": "Liên kết",
+        "nested_bullet": "Gạch đầu dòng lồng",
+        "nested_ordered_item": "Mục lồng {{index}}",
+        "nested_quote": "Trích dẫn lồng",
+        "ordered_item": "Mục {{index}}",
+        "quote": "Trích dẫn",
+        "table_row": "Hàng {{index}}: {{content}}"
+      },
+      "image": "[Ảnh từ web, không tải: {{alt}}]",
+      "open_link": "Mở",
+      "open_link_title": "Mở liên kết ngoài Mull?"
+    },
     "metrics": "{{tps}} tok/s · {{tokens}} token",
     "metrics_tokens": "{{tokens}} token",
     "new_chat": "Cuộc trò chuyện mới",
@@ -34,6 +73,15 @@
     "open_drawer": "Mở thanh bên",
     "pick_model": "Chọn model, đang dùng {{model}}",
     "private_note": "Riêng tư · chạy trên iPhone này",
+    "sources": {
+      "cited": "Nguồn",
+      "consulted": "Đã tham khảo",
+      "missing": "Không mở được đoạn này. Có thể tài liệu đã bị xoá.",
+      "name_page": "{{name}} · tr. {{page}}",
+      "open": "Mở nguồn {{index}}, {{name}}",
+      "page": "trang {{page}}",
+      "title": "Đoạn trong tài liệu"
+    },
     "stopped": "Đã dừng",
     "suggestions": {
       "explain_body": "lượng tử hoá model là gì",
@@ -49,6 +97,11 @@
       "summarize_prompt": "Tóm tắt giúp mình bài viết sau:\n",
       "summarize_title": "Tóm tắt"
     },
+    "vision": {
+      "offer": "{{current}} không đọc được ảnh. {{model}} đọc được ảnh và chữ trong ảnh ({{size}}).",
+      "unsupported": "{{current}} không đọc được ảnh, và iPhone này chưa đủ bộ nhớ cho model đọc ảnh.",
+      "use": "Dùng {{model}} cho chat này"
+    },
     "welcome_body": "{{model}} đang chạy trên iPhone này. Những gì bạn gõ không rời khỏi máy.",
     "welcome_title": "Bạn đang nghĩ gì?"
   },
@@ -63,7 +116,11 @@
   },
   "dev": {
     "engine_title": "Thử engine",
-    "gallery_title": "Thư viện thành phần"
+    "gallery_title": "Thư viện thành phần",
+    "markdown_replay": "Phát lại như stream",
+    "markdown_title": "Thử markdown",
+    "retrieval_title": "Đo tìm đoạn",
+    "seed_chat_title": "Chat dài để đo cuộn"
   },
   "downloads": {
     "active": "{{count}} đang tải",
@@ -87,6 +144,7 @@
     "not_enough_space": "Cần thêm {{size}} dung lượng trống để tải model này.",
     "not_enough_space_title": "iPhone không đủ dung lượng",
     "progress_of": "{{done}} / {{total}} · Huỷ",
+    "ready_for_documents": "Sẵn sàng đọc tài liệu",
     "start_chat": "Bắt đầu trò chuyện",
     "verifying": "Đang kiểm tra file…"
   },
@@ -118,7 +176,8 @@
     "reasoning": "Suy luận",
     "small": "Nhỏ gọn",
     "smallest": "Nhỏ nhất",
-    "vietnamese": "Tiếng Việt tốt"
+    "vietnamese": "Tiếng Việt tốt",
+    "vision": "Đọc ảnh"
   },
   "model_picker": {
     "footnote": "Khi đổi model, model hiện tại được giải phóng khỏi bộ nhớ. Lịch sử cuộc trò chuyện vẫn giữ nguyên.",
@@ -140,6 +199,8 @@
     "filter_all": "Tất cả",
     "filter_mine": "Trên iPhone này",
     "fits": "Chạy tốt trên iPhone này",
+    "for_documents": "Cho tài liệu",
+    "for_documents_footer": "Mull dùng model này để đọc tài liệu dài bạn đính kèm. Nó không dùng để trò chuyện.",
     "format": "Định dạng",
     "in_use": "Đang dùng",
     "in_use_badge": "ĐANG DÙNG",

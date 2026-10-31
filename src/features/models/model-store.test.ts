@@ -30,6 +30,8 @@ function model(id: string, sizeBytes: number, sha256: string): CatalogModel {
     url: `https://huggingface.co/x/resolve/abc/${id}.gguf`,
     sourceUrl: 'https://huggingface.co/x',
     contextTokens: 2048,
+    kind: 'chat',
+    kvBytesPerToken: 1024,
     thinking: false,
     defaultSampling: { temperature: 0.8, topP: 0.9, minP: 0, repeatPenalty: 1 },
     labels: [],
@@ -38,10 +40,30 @@ function model(id: string, sizeBytes: number, sha256: string): CatalogModel {
   };
 }
 
+const VISION: CatalogModel = {
+  ...model('v', 10, 'd'.repeat(64)),
+  vision: {
+    mmproj: {
+      url: 'https://huggingface.co/x/resolve/abc/mmproj.gguf',
+      sha256: 'e'.repeat(64),
+      sizeBytes: 5,
+    },
+    imageMaxTokens: 256,
+  },
+};
+
+const EMBEDDER: CatalogModel = {
+  ...model('emb', 3, '1'.repeat(64)),
+  kind: 'embedding',
+  embedding: { dimensions: 4, queryPrefix: 'q: ', documentPrefix: 'd: ' },
+};
+
 const CATALOG = [
   model('a', 10, 'a'.repeat(64)),
   model('b', 20, 'b'.repeat(64)),
   model('c', 30, 'c'.repeat(64)),
+  VISION,
+  EMBEDDER,
 ];
 
 /** Files as path → { size, hash }; directories are implied by prefixes. */
@@ -120,15 +142,23 @@ async function setup(
   return { repos, fs, net, models };
 }
 
-/** Simulates the transfer finishing with the given bytes at the partial path. */
+/**
+ * Simulates a file's transfer finishing with the given bytes at its partial
+ * path. `target` is a model id, or `<id>/mmproj` for its projector.
+ */
 function finish(
   ctx: Awaited<ReturnType<typeof setup>>,
-  id: string,
+  target: string,
   file: { size: number; hash: string }
 ) {
-  ctx.fs.files.set(`${MODELS_DIR}/${id}/model.gguf.download`, file);
-  ctx.net.handlers.get(id)!.onDone();
+  const [id, key = 'model'] = target.split('/');
+  ctx.fs.files.set(`${MODELS_DIR}/${id}/${key}.gguf.download`, file);
+  ctx.net.handlers.get(`${id}/${key}`)!.onDone();
 }
+
+const settle = async () => {
+  for (let i = 0; i < 6; i++) await flush();
+};
 
 describe('download state machine', () => {
   it('walks queued → downloading → verifying → done', () => {
@@ -170,8 +200,8 @@ describe('model store', () => {
     await ctx.models.init();
     ctx.models.download('a');
     await flush();
-    expect(ctx.net.started).toEqual(['a']);
-    ctx.net.handlers.get('a')!.onProgress(5, 10);
+    expect(ctx.net.started).toEqual(['a/model']);
+    ctx.net.handlers.get('a/model')!.onProgress(5, 10);
     expect(
       downloadFraction(ctx.models.store.getState().downloads.a)
     ).toBeCloseTo(0.5);
@@ -184,7 +214,7 @@ describe('model store', () => {
     expect(state.downloadedIds).toEqual(['a']);
     expect(state.paths.a).toBe(`${MODELS_DIR}/a/model.gguf`);
     expect(ctx.fs.files.has(`${MODELS_DIR}/a/model.gguf`)).toBe(true);
-    expect(ctx.net.completed).toEqual(['a']);
+    expect(ctx.net.completed).toEqual(['a/model']);
     expect(await ctx.repos.models.get('a')).toMatchObject({ isDownloaded: 1 });
   });
 
@@ -224,12 +254,13 @@ describe('model store', () => {
     ctx.models.download('b');
     ctx.models.download('c');
     await flush();
-    expect(ctx.net.started).toEqual(['a', 'b']);
+    expect(ctx.net.started).toEqual(['a/model', 'b/model']);
     expect(ctx.models.store.getState().downloads.c?.status).toBe('queued');
     await ctx.models.cancel('a');
     await flush();
-    expect(ctx.net.stopped).toEqual(['a']);
-    expect(ctx.net.started).toEqual(['a', 'b', 'c']);
+    await flush();
+    expect(ctx.net.stopped).toEqual(['a/model']);
+    expect(ctx.net.started).toEqual(['a/model', 'b/model', 'c/model']);
     expect(ctx.models.store.getState().downloads.a).toBeUndefined();
   });
 
@@ -238,18 +269,18 @@ describe('model store', () => {
     await ctx.models.init();
     ctx.models.download('a');
     await flush();
-    ctx.net.handlers.get('a')!.onError('offline');
+    ctx.net.handlers.get('a/model')!.onError('offline');
     expect(ctx.models.store.getState().downloads.a).toMatchObject({
       status: 'failed',
       error: 'network',
     });
     ctx.models.download('a');
     await flush();
-    expect(ctx.net.started).toEqual(['a', 'a']);
+    expect(ctx.net.started).toEqual(['a/model', 'a/model']);
   });
 
   it('reattaches to a transfer that kept running while closed', async () => {
-    const ctx = await setup([{ id: 'b', bytesDone: 5, bytesTotal: 20 }]);
+    const ctx = await setup([{ id: 'b/model', bytesDone: 5, bytesTotal: 20 }]);
     await ctx.models.init();
     expect(ctx.models.store.getState().downloads.b).toMatchObject({
       status: 'downloading',
@@ -302,5 +333,119 @@ describe('model store', () => {
     await ctx.models.remove('a');
     expect(ctx.models.store.getState().downloadedIds).toEqual(['b']);
     expect(ctx.fs.files.has(`${MODELS_DIR}/a/model.gguf`)).toBe(false);
+  });
+
+  it('fetches the vision projector after the weights, as one download', async () => {
+    const ctx = await setup();
+    await ctx.models.init();
+    ctx.models.download('v');
+    await flush();
+    expect(ctx.net.started).toEqual(['v/model']);
+    expect(ctx.models.store.getState().downloads.v?.bytesTotal).toBe(15);
+
+    finish(ctx, 'v', { size: 10, hash: 'd'.repeat(64) });
+    await settle();
+    expect(ctx.net.started).toEqual(['v/model', 'v/mmproj']);
+    expect(ctx.models.store.getState().downloads.v?.status).toBe('downloading');
+    expect(ctx.models.store.getState().downloadedIds).toEqual([]);
+    ctx.net.handlers.get('v/mmproj')!.onProgress(2, 5);
+    expect(ctx.models.store.getState().downloads.v?.bytesDone).toBe(12);
+
+    finish(ctx, 'v/mmproj', { size: 5, hash: 'e'.repeat(64) });
+    await settle();
+    const state = ctx.models.store.getState();
+    expect(state.downloads.v?.status).toBe('done');
+    expect(state.downloadedIds).toEqual(['v']);
+    expect(ctx.models.mmprojPath('v')).toBe(`${MODELS_DIR}/v/mmproj.gguf`);
+    expect(ctx.models.finalFiles('v')).toEqual([
+      `${MODELS_DIR}/v/model.gguf`,
+      `${MODELS_DIR}/v/mmproj.gguf`,
+    ]);
+  });
+
+  it('fails the whole model when the projector is corrupt', async () => {
+    const ctx = await setup();
+    await ctx.models.init();
+    ctx.models.download('v');
+    await flush();
+    finish(ctx, 'v', { size: 10, hash: 'd'.repeat(64) });
+    await settle();
+    finish(ctx, 'v/mmproj', { size: 5, hash: '0'.repeat(64) });
+    await settle();
+    expect(ctx.models.store.getState().downloads.v).toMatchObject({
+      status: 'failed',
+      error: 'checksum',
+    });
+    expect(ctx.models.store.getState().downloadedIds).toEqual([]);
+  });
+
+  it('reattaches when only the projector was still downloading', async () => {
+    const ctx = await setup(
+      [{ id: 'v/mmproj', bytesDone: 3, bytesTotal: 5 }],
+      (fs) => {
+        fs.files.set(`${MODELS_DIR}/v/model.gguf`, {
+          size: 10,
+          hash: 'd'.repeat(64),
+        });
+      }
+    );
+    await ctx.models.init();
+    expect(ctx.net.stopped).toEqual([]);
+    expect(ctx.models.store.getState().downloads.v).toMatchObject({
+      status: 'downloading',
+      bytesDone: 13,
+      bytesTotal: 15,
+    });
+    finish(ctx, 'v/mmproj', { size: 5, hash: 'e'.repeat(64) });
+    await settle();
+    expect(ctx.models.store.getState().downloadedIds).toEqual(['v']);
+  });
+
+  it('verifies a projector that finished while Mull was closed', async () => {
+    const ctx = await setup([], (fs) => {
+      fs.files.set(`${MODELS_DIR}/v/model.gguf`, {
+        size: 10,
+        hash: 'd'.repeat(64),
+      });
+      fs.files.set(`${MODELS_DIR}/v/mmproj.gguf.download`, {
+        size: 5,
+        hash: 'e'.repeat(64),
+      });
+    });
+    await ctx.models.init();
+    await settle();
+    expect(ctx.models.store.getState().downloadedIds).toEqual(['v']);
+  });
+
+  it('keeps verified weights and resumes with the missing projector', async () => {
+    const ctx = await setup([], (fs) => {
+      fs.files.set(`${MODELS_DIR}/v/model.gguf`, {
+        size: 10,
+        hash: 'd'.repeat(64),
+      });
+    });
+    await ctx.models.init();
+    expect(ctx.models.store.getState().downloadedIds).toEqual([]);
+    expect(ctx.fs.files.has(`${MODELS_DIR}/v/model.gguf`)).toBe(true);
+    ctx.models.download('v');
+    await settle();
+    expect(ctx.net.started).toEqual(['v/mmproj']);
+  });
+
+  it('never lists an embedding model as a chat model', async () => {
+    const ctx = await setup([], (fs) => {
+      fs.files.set(`${MODELS_DIR}/emb/model.gguf`, {
+        size: 3,
+        hash: '1'.repeat(64),
+      });
+    });
+    await ctx.repos.models.markDownloaded(
+      'emb',
+      `${MODELS_DIR}/emb/model.gguf`
+    );
+    await ctx.models.init();
+    const state = ctx.models.store.getState();
+    expect(state.downloadedIds).toEqual(['emb']);
+    expect(state.downloadedChatIds).toEqual([]);
   });
 });

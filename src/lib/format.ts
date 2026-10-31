@@ -23,6 +23,9 @@ export function formatParams(billions: number): string {
 /** "2,5 GB", "396 MB", "0 MB". */
 export function formatBytes(bytes: number): string {
   if (bytes >= GB * 0.95) return `${oneDecimal.format(bytes / GB)} GB`;
+  // Attachments are often well under a megabyte.
+  if (bytes < MB)
+    return `${whole.format(Math.ceil(Math.max(0, bytes) / 1024))} KB`;
   return `${whole.format(Math.max(0, bytes) / MB)} MB`;
 }
 

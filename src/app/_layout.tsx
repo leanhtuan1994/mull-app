@@ -100,8 +100,24 @@ function AppNavigator() {
           }}
         />
       </Stack.Protected>
+      <Stack.Screen
+        name="source/[id]"
+        options={{
+          presentation: 'formSheet',
+          sheetAllowedDetents: [0.6, 0.92],
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 34,
+        }}
+      />
+      <Stack.Screen
+        name="image-viewer"
+        options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+      />
       <Stack.Screen name="dev/engine" options={{ headerShown: true }} />
       <Stack.Screen name="dev/gallery" options={{ headerShown: true }} />
+      <Stack.Screen name="dev/markdown" options={{ headerShown: true }} />
+      <Stack.Screen name="dev/seed-chat" options={{ headerShown: true }} />
+      <Stack.Screen name="dev/retrieval" options={{ headerShown: true }} />
     </Stack>
   );
 }

@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useToast } from 'heroui-native';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, Share } from 'react-native';
 
@@ -12,10 +12,12 @@ import {
   Text,
   View,
 } from '@/components/ui';
+import type { MessageSource } from '@/db/types';
 import { getCatalogModels } from '@/features/models/catalog';
 import { formatInteger } from '@/lib/format';
 
 import { MarkdownText } from './markdown-text';
+import { SourceChips } from './source-chips';
 
 type AssistantMessageProps = {
   content: string;
@@ -26,7 +28,11 @@ type AssistantMessageProps = {
   tokenCount?: number | null;
   /** Only the latest answer can be regenerated. */
   onRegenerate?: () => void;
+  /** Document passages this answer was given. */
+  sources?: MessageSource[];
 };
+
+const EMPTY_SOURCES: MessageSource[] = [];
 
 function familyOf(modelName: string | null) {
   return getCatalogModels().find((m) => m.name === modelName)?.family ?? 'qwen';
@@ -40,8 +46,13 @@ export const AssistantMessage = memo(function AssistantMessage({
   tokensPerSecond,
   tokenCount,
   onRegenerate,
+  sources = EMPTY_SOURCES,
 }: AssistantMessageProps) {
   const { t } = useTranslation();
+  const citations = useMemo(
+    () => new Map(sources.map((s) => [s.n, s.chunkId])),
+    [sources]
+  );
   const { toast } = useToast();
 
   const copy = async () => {
@@ -81,19 +92,17 @@ export const AssistantMessage = memo(function AssistantMessage({
 
       {content ? (
         <View testID={streaming ? 'assistant-streaming' : undefined}>
-          {streaming ? (
-            // Plain text while streaming: re-parsing markdown every frame costs more than it shows.
-            <Text className="text-[17px] leading-[25px] text-foreground">
-              {content}
-              <Text className="text-accent-text">▍</Text>
-            </Text>
-          ) : (
-            <MarkdownText value={content} />
-          )}
+          <MarkdownText
+            value={content}
+            streaming={streaming}
+            citations={citations}
+          />
         </View>
       ) : streaming ? (
         <Text className="text-[17px] text-accent-text">▍</Text>
       ) : null}
+
+      {!streaming ? <SourceChips sources={sources} answer={content} /> : null}
 
       {stopped ? (
         <View

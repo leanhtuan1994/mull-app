@@ -3,6 +3,7 @@ import { initLlama, type LlamaContext } from 'llama.rn';
 
 import {
   type ChatMessage,
+  type EmbeddingEngine,
   EngineNotLoadedError,
   type GenerateResult,
   type LlmEngine,
@@ -44,15 +45,31 @@ export class LlamaRnEngine implements LlmEngine {
   ) {
     if (this.context) await this.unload();
     this.disableThinking = options.disableThinking ?? false;
-    this.context = await initLlama(
+    const context = await initLlama(
       {
         model: modelPath,
         n_ctx: options.contextTokens,
         n_gpu_layers: Device.isDevice ? 99 : 0,
         use_mlock: false,
+        // Shifting the context would move image tokens out of place.
+        ctx_shift: !options.mmprojPath,
       },
       (progress) => onProgress?.(progress / 100)
     );
+    if (options.mmprojPath) {
+      const ok = await context
+        .initMultimodal({
+          path: options.mmprojPath,
+          use_gpu: Device.isDevice,
+          image_max_tokens: options.imageMaxTokens,
+        })
+        .catch(() => false);
+      if (!ok) {
+        await context.release();
+        throw new Error('Could not load the vision projector');
+      }
+    }
+    this.context = context;
   }
 
   async generate(
@@ -71,7 +88,7 @@ export class LlamaRnEngine implements LlmEngine {
 
     const completion = context.completion(
       {
-        messages,
+        messages: messages.map(toLlamaMessage),
         n_predict: sampling.maxTokens,
         temperature: sampling.temperature,
         top_p: sampling.topP,
@@ -128,9 +145,75 @@ export class LlamaRnEngine implements LlmEngine {
     await context.release();
   }
 
-  async countTokens(text: string) {
+  async countTokens(text: string, imagePaths: string[] = []) {
     if (!this.context) throw new EngineNotLoadedError();
-    const { tokens } = await this.context.tokenize(text);
+    const markers = imagePaths.map(() => MEDIA_MARKER).join(' ');
+    const { tokens } = await this.context.tokenize(
+      markers ? `${markers} ${text}` : text,
+      { media_paths: imagePaths.map(fileUrl) }
+    );
     return tokens.length;
+  }
+}
+
+/** Where llama.cpp puts an image in a tokenized prompt. */
+const MEDIA_MARKER = '<__media__>';
+
+const fileUrl = (path: string) =>
+  path.startsWith('file://') ? path : `file://${path}`;
+
+/** Mull's message parts in the OpenAI-style shape llama.rn reads. */
+function toLlamaMessage(message: ChatMessage) {
+  if (typeof message.content === 'string') return message;
+  return {
+    role: message.role,
+    content: message.content.map((part) =>
+      part.type === 'text'
+        ? { type: 'text', text: part.text }
+        : { type: 'image_url', image_url: { url: fileUrl(part.path) } }
+    ),
+  };
+}
+
+/**
+ * Batch size larger than any passage: embedding models are not causal, so a
+ * whole passage must fit one batch. Passages are capped at 1200 characters.
+ */
+const EMBEDDING_BATCH = 1024;
+
+/** A small embedding GGUF on its own llama.cpp context. */
+export class LlamaRnEmbeddingEngine implements EmbeddingEngine {
+  private context: LlamaContext | null = null;
+
+  get isLoaded() {
+    return this.context !== null;
+  }
+
+  async load(modelPath: string, contextTokens: number) {
+    if (this.context) await this.unload();
+    this.context = await initLlama({
+      model: modelPath,
+      embedding: true,
+      n_ctx: contextTokens,
+      n_batch: EMBEDDING_BATCH,
+      n_ubatch: EMBEDDING_BATCH,
+      n_gpu_layers: Device.isDevice ? 99 : 0,
+      use_mlock: false,
+    });
+  }
+
+  async embed(text: string) {
+    if (!this.context) throw new EngineNotLoadedError();
+    // embd_normalize 2: Euclidean, so cosine similarity is a dot product.
+    const { embedding } = await this.context.embedding(text, {
+      embd_normalize: 2,
+    });
+    return embedding;
+  }
+
+  async unload() {
+    const context = this.context;
+    this.context = null;
+    await context?.release();
   }
 }

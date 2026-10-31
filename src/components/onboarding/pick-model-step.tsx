@@ -13,7 +13,7 @@ import {
   Text,
   View,
 } from '@/components/ui';
-import { getCatalogModels } from '@/features/models/catalog';
+import { getChatModels, totalBytes } from '@/features/models/catalog';
 import type { CatalogModel } from '@/features/models/catalog-schema';
 import { onboardingChoices } from '@/features/models/compatibility';
 import { useDeviceInfo } from '@/features/models/use-device-info';
@@ -33,8 +33,9 @@ export function PickModelStep({
   const { models, recommendedId } = useMemo(() => {
     // The simulator reports the Mac's RAM but runs on CPU, so offer only
     // the small models there; the library still lists everything.
-    const catalog = getCatalogModels().filter(
-      (m) => !device.isSimulator || m.simulatorFriendly
+    // First models are plain chat models; vision ones are picked later.
+    const catalog = getChatModels().filter(
+      (m) => !m.vision && (!device.isSimulator || m.simulatorFriendly)
     );
     return onboardingChoices(catalog, device.totalBytes);
   }, [device.isSimulator, device.totalBytes]);
@@ -151,7 +152,7 @@ function ModelChoice({
         >
           {t('onboarding.size_line', {
             params: formatParams(model.params),
-            size: formatBytes(model.sizeBytes),
+            size: formatBytes(totalBytes(model)),
           })}
         </Text>
       </View>

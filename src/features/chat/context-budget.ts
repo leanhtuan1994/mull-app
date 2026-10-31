@@ -1,4 +1,8 @@
-import type { ChatMessage } from '@/features/llm/engine';
+import {
+  type ChatMessage,
+  messageImages,
+  messageText,
+} from '@/features/llm/engine';
 
 import { estimateTokens, MESSAGE_OVERHEAD_TOKENS } from './token-estimate';
 
@@ -28,6 +32,8 @@ export type BuildPromptInput = {
   contextTokens: number;
   maxNewTokens: number;
   countTokens?: (text: string) => number;
+  /** What one image costs; images are capped per model, so this is fixed. */
+  imageTokens?: number;
 };
 
 export type BuiltPrompt = {
@@ -55,9 +61,12 @@ export function buildPrompt({
   contextTokens,
   maxNewTokens,
   countTokens = estimateTokens,
+  imageTokens = 0,
 }: BuildPromptInput): BuiltPrompt {
   const cost = (m: ChatMessage) =>
-    countTokens(m.content) + MESSAGE_OVERHEAD_TOKENS;
+    countTokens(messageText(m.content)) +
+    messageImages(m.content).length * imageTokens +
+    MESSAGE_OVERHEAD_TOKENS;
   const budget = contextTokens - reserveTokens(contextTokens, maxNewTokens);
 
   const system = joinSystemPrompts(modelSystemPrompt, chatSystemPrompt);

@@ -3,6 +3,7 @@ import { createStore } from 'zustand/vanilla';
 import type { ModelRepo } from '@/db/repos';
 
 import type { MullFilesNative } from '../../../modules/mull-files';
+import { type ModelFile, modelFiles, totalBytes } from './catalog';
 import type { CatalogModel } from './catalog-schema';
 import {
   type DownloadErrorKind,
@@ -14,7 +15,9 @@ import {
 import type { DownloadTransport, TransferHandlers } from './downloader';
 
 export const MODEL_FILE = 'model.gguf';
-export const PARTIAL_FILE = 'model.gguf.download';
+/** A file is written under this suffix until its size and hash check out. */
+export const PARTIAL_SUFFIX = '.download';
+export const PARTIAL_FILE = `${MODEL_FILE}${PARTIAL_SUFFIX}`;
 
 export type ModelFiles = Pick<
   MullFilesNative,
@@ -30,9 +33,11 @@ export type ModelFiles = Pick<
 
 export type ModelStoreState = {
   ready: boolean;
-  /** Ids of models whose verified file is on disk. */
+  /** Ids of models whose verified files are all on disk. */
   downloadedIds: string[];
-  /** Absolute paths of verified model files. */
+  /** The downloaded ones people can chat with (not embedding models). */
+  downloadedChatIds: string[];
+  /** Absolute paths of verified weight files. */
   paths: Record<string, string>;
   downloads: Record<string, DownloadState | undefined>;
 };
@@ -44,20 +49,39 @@ type Deps = {
   catalog: () => CatalogModel[];
 };
 
+/** Transfers are per file: `<model id>/<file key>`. */
+function transferId(modelId: string, key: ModelFile['key']) {
+  return `${modelId}/${key}`;
+}
+
+function parseTransferId(id: string) {
+  const [modelId, key = 'model'] = id.split('/');
+  return { modelId, key };
+}
+
 export function createModelStore({ repo, files, transport, catalog }: Deps) {
   const store = createStore<ModelStoreState>()(() => ({
     ready: false,
     downloadedIds: [],
+    downloadedChatIds: [],
     paths: {},
     downloads: {},
   }));
   let modelsDir = '';
   const order: string[] = [];
+  /** The file each model is transferring right now. */
+  const activeFile = new Map<string, ModelFile['key']>();
 
   const find = (id: string) => catalog().find((m) => m.id === id);
   const dirOf = (id: string) => `${modelsDir}/${id}`;
-  const partialOf = (id: string) => `${dirOf(id)}/${PARTIAL_FILE}`;
-  const finalOf = (id: string) => `${dirOf(id)}/${MODEL_FILE}`;
+  const finalOf = (id: string, file: ModelFile) =>
+    `${dirOf(id)}/${file.fileName}`;
+  const partialOf = (id: string, file: ModelFile) =>
+    `${finalOf(id, file)}${PARTIAL_SUFFIX}`;
+  const filesOf = (id: string) => {
+    const model = find(id);
+    return model ? modelFiles(model) : [];
+  };
 
   function dispatch(id: string, event: DownloadEvent) {
     const downloads = store.getState().downloads;
@@ -66,6 +90,8 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
       store.setState({ downloads: { ...downloads, [id]: next } });
   }
 
+  const statusOf = (id: string) => store.getState().downloads[id]?.status;
+
   function forget(id: string) {
     const { [id]: _removed, ...rest } = store.getState().downloads;
     store.setState({ downloads: rest });
@@ -73,71 +99,153 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
     if (index !== -1) order.splice(index, 1);
   }
 
+  async function allPresent(id: string) {
+    for (const file of filesOf(id)) {
+      if (!(await files.exists(finalOf(id, file)))) return false;
+    }
+    return filesOf(id).length > 0;
+  }
+
+  /** Files still to fetch, and the bytes of those already verified. */
+  async function remaining(id: string) {
+    const missing: ModelFile[] = [];
+    let doneBytes = 0;
+    for (const file of filesOf(id)) {
+      if (await files.exists(finalOf(id, file))) doneBytes += file.sizeBytes;
+      else missing.push(file);
+    }
+    return { missing, doneBytes };
+  }
+
+  async function removePartials(id: string) {
+    for (const file of filesOf(id)) {
+      await files.remove(partialOf(id, file)).catch(() => undefined);
+    }
+  }
+
   async function refreshDownloaded() {
     const rows = await repo.listDownloaded();
+    const model = (id: string) => find(id);
     store.setState({
       downloadedIds: rows.map((r) => r.id),
+      downloadedChatIds: rows
+        .map((r) => r.id)
+        .filter((id) => model(id)?.kind === 'chat'),
       // The app container moves on updates, so never trust a stored absolute path.
-      paths: Object.fromEntries(rows.map((r) => [r.id, finalOf(r.id)])),
+      paths: Object.fromEntries(
+        rows.map((r) => [r.id, `${dirOf(r.id)}/${MODEL_FILE}`])
+      ),
     });
   }
 
-  function handlersFor(id: string): TransferHandlers {
+  /** `offset`: bytes of the model's files already verified, if known. */
+  function handlersFor(id: string, offset?: number): TransferHandlers {
+    const { modelId, key } = parseTransferId(id);
+    const file = filesOf(modelId).find((f) => f.key === key);
+    let done = offset ?? 0;
+    if (offset === undefined) {
+      void remaining(modelId).then((r) => {
+        done = r.doneBytes;
+      });
+    }
     return {
-      onProgress: (done, total) =>
-        dispatch(id, { type: 'progress', bytesDone: done, bytesTotal: total }),
+      onProgress: (bytes) => {
+        const model = find(modelId);
+        if (!model) return;
+        dispatch(modelId, {
+          type: 'progress',
+          bytesDone: done + bytes,
+          bytesTotal: totalBytes(model),
+        });
+      },
       onDone: () => {
         transport.complete(id);
-        if (store.getState().downloads[id]?.status !== 'downloading') return;
-        dispatch(id, { type: 'downloaded' });
-        void verify(id);
-        pump();
+        activeFile.delete(modelId);
+        if (statusOf(modelId) !== 'downloading' || !file) return;
+        void finishFile(modelId, file);
       },
       onError: () => {
-        void files.remove(partialOf(id));
-        dispatch(id, { type: 'fail', error: 'network' });
+        activeFile.delete(modelId);
+        if (file) void files.remove(partialOf(modelId, file));
+        dispatch(modelId, { type: 'fail', error: 'network' });
         pump();
       },
     };
   }
 
   async function fail(id: string, error: DownloadErrorKind) {
-    await files.remove(partialOf(id)).catch(() => undefined);
+    await removePartials(id);
     dispatch(id, { type: 'fail', error });
+    pump();
   }
 
-  /** Size, then SHA-256. Only a file that passes both becomes model.gguf. */
-  async function verify(id: string) {
-    const model = find(id);
-    if (!model) return;
+  /** Size, then SHA-256. Only a file that passes both gets its final name. */
+  async function verifyFile(
+    id: string,
+    file: ModelFile
+  ): Promise<DownloadErrorKind | null> {
+    const size = await files.fileSize(partialOf(id, file));
+    if (size !== file.sizeBytes) return 'size';
+    const hash = await files.sha256(partialOf(id, file));
+    if (hash.toLowerCase() !== file.sha256) return 'checksum';
+    await files.move(partialOf(id, file), finalOf(id, file));
+    return null;
+  }
+
+  async function completeModel(id: string) {
+    await repo.markDownloaded(id, `${dirOf(id)}/${MODEL_FILE}`);
+    await refreshDownloaded();
+    dispatch(id, { type: 'verified' });
+    pump();
+  }
+
+  /**
+   * A transfer finished: verify that file, then fetch the next one, or mark
+   * the model downloaded once every file is in place. Only the last file
+   * shows the "verifying" state, since that is when the model becomes usable.
+   */
+  async function finishFile(id: string, file: ModelFile) {
     try {
-      const size = await files.fileSize(partialOf(id));
-      if (size !== model.sizeBytes) return await fail(id, 'size');
-      const hash = await files.sha256(partialOf(id));
-      if (hash.toLowerCase() !== model.sha256)
-        return await fail(id, 'checksum');
-      await files.move(partialOf(id), finalOf(id));
-      await repo.markDownloaded(id, finalOf(id));
-      await refreshDownloaded();
-      dispatch(id, { type: 'verified' });
+      const { missing } = await remaining(id);
+      const isLast = missing.length === 1 && missing[0].key === file.key;
+      if (isLast) dispatch(id, { type: 'downloaded' });
+      const error = await verifyFile(id, file);
+      if (error) return await fail(id, error);
+      if (isLast) return await completeModel(id);
+      if (statusOf(id) === 'downloading') await startNextFile(id);
     } catch {
       await fail(id, 'unknown');
     }
   }
 
+  async function startNextFile(id: string) {
+    const { missing, doneBytes } = await remaining(id);
+    const file = missing[0];
+    // Cancelled while the previous file was being checked.
+    if (statusOf(id) !== 'downloading') return;
+    if (!file) {
+      dispatch(id, { type: 'downloaded' });
+      return await completeModel(id);
+    }
+    await files.remove(partialOf(id, file));
+    if (statusOf(id) !== 'downloading') return;
+    activeFile.set(id, file.key);
+    transport.start(
+      {
+        id: transferId(id, file.key),
+        url: file.url,
+        destination: partialOf(id, file),
+      },
+      handlersFor(transferId(id, file.key), doneBytes)
+    );
+  }
+
   async function startTransfer(id: string) {
-    const model = find(id);
-    if (!model) return;
+    if (!find(id)) return;
     dispatch(id, { type: 'start' });
     try {
       await files.ensureDirectory(dirOf(id));
-      await files.remove(partialOf(id));
-      // Cancelled while the folder was being prepared.
-      if (store.getState().downloads[id]?.status !== 'downloading') return;
-      transport.start(
-        { id, url: model.url, destination: partialOf(id) },
-        handlersFor(id)
-      );
+      await startNextFile(id);
     } catch {
       dispatch(id, { type: 'fail', error: 'disk' });
       pump();
@@ -145,23 +253,50 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
   }
 
   function pump() {
+    // One transfer per model at a time, so this also caps parallel files.
     for (const id of downloadsToStart(store.getState().downloads, order)) {
       void startTransfer(id);
     }
   }
 
-  /** Model folders whose download is not running, so their partial file is stale. */
+  /** Model folders whose download is not running, so their partial files are stale. */
   async function idleEntries(): Promise<string[]> {
-    const downloads = store.getState().downloads;
     const entries = await files.listDirectory(modelsDir);
     return entries.filter((entry) => {
-      const status = downloads[entry]?.status;
+      const status = statusOf(entry);
       return (
         status !== 'downloading' &&
         status !== 'verifying' &&
         status !== 'queued'
       );
     });
+  }
+
+  /**
+   * Verifies files that finished while Mull was closed. A model that is
+   * then complete is marked downloaded; one that still misses a file waits
+   * for the person to resume it.
+   */
+  async function recover(id: string) {
+    const model = find(id)!;
+    order.push(id);
+    dispatch(id, { type: 'enqueue', bytesTotal: totalBytes(model) });
+    dispatch(id, { type: 'start' });
+    try {
+      for (const file of modelFiles(model)) {
+        if (!(await files.exists(partialOf(id, file)))) continue;
+        const error = await verifyFile(id, file);
+        if (error) return await fail(id, error);
+      }
+      if (await allPresent(id)) {
+        dispatch(id, { type: 'downloaded' });
+        await completeModel(id);
+      } else {
+        dispatch(id, { type: 'fail', error: 'network' });
+      }
+    } catch {
+      await fail(id, 'unknown');
+    }
   }
 
   return {
@@ -175,65 +310,66 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
       modelsDir = await files.modelsDirectory();
       const known = new Set(catalog().map((m) => m.id));
 
-      const live = await transport.reattach(handlersFor);
-      const liveIds = new Set(live.map((t) => t.id));
+      const live = await transport.reattach((id) => handlersFor(id));
+      const liveIds = new Set<string>();
       for (const transfer of live) {
-        const model = find(transfer.id);
-        if (!model) {
+        const { modelId, key } = parseTransferId(transfer.id);
+        const model = find(modelId);
+        const file = model && modelFiles(model).find((f) => f.key === key);
+        if (!model || !file) {
           await transport.stop(transfer.id);
           continue;
         }
-        order.push(transfer.id);
-        dispatch(transfer.id, { type: 'enqueue', bytesTotal: model.sizeBytes });
-        dispatch(transfer.id, { type: 'start' });
-        dispatch(transfer.id, {
+        liveIds.add(modelId);
+        activeFile.set(modelId, file.key);
+        order.push(modelId);
+        const { doneBytes } = await remaining(modelId);
+        dispatch(modelId, { type: 'enqueue', bytesTotal: totalBytes(model) });
+        dispatch(modelId, { type: 'start' });
+        dispatch(modelId, {
           type: 'progress',
-          bytesDone: transfer.bytesDone,
-          bytesTotal: transfer.bytesTotal,
+          bytesDone: doneBytes + transfer.bytesDone,
+          bytesTotal: totalBytes(model),
         });
       }
 
       // Database says downloaded, disk disagrees: mark it missing.
       for (const row of await repo.listDownloaded()) {
-        if (!(await files.exists(finalOf(row.id))))
-          await repo.markNotDownloaded(row.id);
+        if (!(await allPresent(row.id))) await repo.markNotDownloaded(row.id);
       }
       await refreshDownloaded();
       const downloaded = new Set(store.getState().downloadedIds);
 
-      const toVerify: string[] = [];
+      const toRecover: string[] = [];
       for (const entry of await files.listDirectory(modelsDir)) {
         if (!known.has(entry)) {
           await files.remove(`${modelsDir}/${entry}`);
           continue;
         }
-        if (downloaded.has(entry) || liveIds.has(entry)) {
-          if (downloaded.has(entry)) await files.remove(partialOf(entry));
+        if (liveIds.has(entry)) continue;
+        if (downloaded.has(entry)) {
+          await removePartials(entry);
           continue;
         }
-        if (await files.exists(partialOf(entry))) {
-          // The transfer finished while Mull was not running.
-          toVerify.push(entry);
-        } else {
-          await files.remove(dirOf(entry));
+        const { missing } = await remaining(entry);
+        let hasPartial = false;
+        for (const file of missing) {
+          if (await files.exists(partialOf(entry, file))) hasPartial = true;
         }
+        if (hasPartial) toRecover.push(entry);
+        // Keep verified files of an unfinished model so a retry resumes.
+        else if (missing.length === filesOf(entry).length)
+          await files.remove(dirOf(entry));
       }
 
       store.setState({ ready: true });
-      for (const id of toVerify) {
-        const model = find(id)!;
-        order.push(id);
-        dispatch(id, { type: 'enqueue', bytesTotal: model.sizeBytes });
-        dispatch(id, { type: 'start' });
-        dispatch(id, { type: 'downloaded' });
-        void verify(id);
-      }
+      for (const id of toRecover) void recover(id);
     },
 
     download(id: string) {
       const model = find(id);
       if (!model) return;
-      const current = store.getState().downloads[id]?.status;
+      const current = statusOf(id);
       if (
         current === 'queued' ||
         current === 'downloading' ||
@@ -242,15 +378,19 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
         return;
       if (store.getState().downloadedIds.includes(id)) return;
       if (!order.includes(id)) order.push(id);
-      dispatch(id, { type: 'enqueue', bytesTotal: model.sizeBytes });
+      dispatch(id, { type: 'enqueue', bytesTotal: totalBytes(model) });
       pump();
     },
 
     async cancel(id: string) {
-      const status = store.getState().downloads[id]?.status;
+      const status = statusOf(id);
       if (status === 'verifying') return;
-      if (status === 'downloading') await transport.stop(id);
-      await files.remove(partialOf(id)).catch(() => undefined);
+      const key = activeFile.get(id);
+      if (status === 'downloading' && key) {
+        activeFile.delete(id);
+        await transport.stop(transferId(id, key));
+      }
+      await removePartials(id);
       dispatch(id, { type: 'cancel' });
       forget(id);
       pump();
@@ -258,7 +398,7 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
 
     /** Clears a finished or failed entry so the row returns to its plain state. */
     dismiss(id: string) {
-      const status = store.getState().downloads[id]?.status;
+      const status = statusOf(id);
       if (status === 'done' || status === 'failed' || status === 'cancelled')
         forget(id);
     },
@@ -271,18 +411,36 @@ export function createModelStore({ repo, files, transport, catalog }: Deps) {
       await refreshDownloaded();
     },
 
-    /** Removes leftover partial files of transfers that are no longer running. */
     /** Unfinished download files that no transfer is writing to. */
     async idlePartials(): Promise<string[]> {
-      return (await idleEntries()).map(partialOf);
+      const out: string[] = [];
+      for (const entry of await idleEntries()) {
+        for (const file of filesOf(entry)) out.push(partialOf(entry, file));
+      }
+      return out;
     },
 
     async clearPartials() {
       for (const entry of await idleEntries()) {
-        await files.remove(partialOf(entry));
-        if (!store.getState().downloadedIds.includes(entry))
+        await removePartials(entry);
+        // Keep verified weights of an unfinished model so a retry resumes.
+        const { missing } = await remaining(entry);
+        if (missing.length === filesOf(entry).length)
           await files.remove(dirOf(entry));
       }
+    },
+
+    /** Every verified file of a downloaded model, for storage figures. */
+    finalFiles(id: string): string[] {
+      return filesOf(id).map((file) => finalOf(id, file));
+    },
+
+    /** The vision projector of a downloaded model, if it has one. */
+    mmprojPath(id: string): string | undefined {
+      const file = filesOf(id).find((f) => f.key === 'mmproj');
+      return file && store.getState().downloadedIds.includes(id)
+        ? finalOf(id, file)
+        : undefined;
     },
 
     modelsDirectory: () => modelsDir,

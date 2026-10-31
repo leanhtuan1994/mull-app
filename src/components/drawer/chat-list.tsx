@@ -10,6 +10,7 @@ import { notifyChatsChanged } from '@/features/chat/chat-list-store';
 import { type DateGroupKey, groupByDate } from '@/features/chat/group-by-date';
 import { searchExcerpt } from '@/features/chat/search-excerpt';
 import { useChatList } from '@/features/chat/use-chat-list';
+import { deleteChat } from '@/features/services';
 
 type Item =
   | { type: 'header'; key: string; label: string }
@@ -96,7 +97,7 @@ export function ChatList({
         text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
-          await getRepos().chats.remove(chat.id);
+          await deleteChat(chat.id);
           notifyChatsChanged();
           if (chat.id === activeChatId) onDeletedActive();
         },

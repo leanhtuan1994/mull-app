@@ -23,7 +23,11 @@ import {
 import { getRepos } from '@/db/client';
 import { notifyChatsChanged } from '@/features/chat/chat-list-store';
 import type { ResponseLength } from '@/features/chat/context-budget';
-import { findCatalogModel, getCatalogModels } from '@/features/models/catalog';
+import {
+  findCatalogModel,
+  getCatalogModels,
+  totalBytes,
+} from '@/features/models/catalog';
 import { chat, useModels } from '@/features/services';
 import {
   TEMPERATURE_MAX,
@@ -55,7 +59,7 @@ export default function SettingsScreen() {
 
   const modelsBytes = getCatalogModels()
     .filter((m) => downloadedIds.includes(m.id))
-    .reduce((sum, m) => sum + m.sizeBytes, 0);
+    .reduce((sum, m) => sum + totalBytes(m), 0);
 
   const deleteAllChats = () => {
     ActionSheetIOS.showActionSheetWithOptions(
@@ -67,7 +71,7 @@ export default function SettingsScreen() {
       },
       async (index) => {
         if (index !== 0) return;
-        await getRepos().chats.removeAll();
+        await deleteAllChats();
         chat.startNew();
         notifyChatsChanged();
         setChatCount(0);

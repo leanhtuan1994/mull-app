@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { ProgressButton, Text, View } from '@/components/ui';
+import { totalBytes } from '@/features/models/catalog';
 import type { CatalogModel } from '@/features/models/catalog-schema';
 import { downloadFraction } from '@/features/models/download-machine';
 import { useStartDownload } from '@/features/models/use-start-download';
@@ -30,7 +31,15 @@ export function ModelDownloadButton({
   const status = download?.status;
 
   if (downloaded) {
-    return (
+    // An embedding model only reads documents; there is no chat to start.
+    return model.kind === 'embedding' ? (
+      <ProgressButton
+        testID={testID}
+        label={t('downloads.ready_for_documents')}
+        onPress={() => {}}
+        disabled
+      />
+    ) : (
       <ProgressButton
         testID={testID}
         label={t('downloads.start_chat')}
@@ -56,7 +65,7 @@ export function ModelDownloadButton({
       progressStyle === 'bytes'
         ? t('downloads.progress_of', {
             done: formatBytes(download?.bytesDone ?? 0),
-            total: formatBytes(model.sizeBytes),
+            total: formatBytes(totalBytes(model)),
           })
         : t('downloads.downloading', { percent: formatPercent(fraction) });
     return (
@@ -80,7 +89,7 @@ export function ModelDownloadButton({
         label={
           status === 'failed'
             ? t('downloads.failed_retry')
-            : t('downloads.download', { size: formatBytes(model.sizeBytes) })
+            : t('downloads.download', { size: formatBytes(totalBytes(model)) })
         }
         onPress={() => void start(model)}
       />
