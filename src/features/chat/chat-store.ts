@@ -11,6 +11,7 @@ import type {
 import {
   DOCUMENT_NOTE,
   type DocumentContext,
+  sourcesUsed,
 } from '@/features/attachments/document-context';
 import {
   type ChatMessage,
@@ -98,6 +99,7 @@ export type ChatDeps = {
   documentContext?: (input: {
     chatId: number;
     question: string;
+    previousQuestion?: string;
     budgetTokens: number;
   }) => Promise<DocumentContext | null>;
   /** Moves draft attachments under the chat once their message exists. */
@@ -233,12 +235,14 @@ export function createChatStore(deps: ChatDeps) {
     const room =
       model.contextTokens - reserveTokens(model.contextTokens, maxNewTokens);
     const question = history[history.length - 1];
+    const previous = history.slice(0, -1).findLast((m) => m.role === 'user');
     const documents =
       deps.documentContext && question
         ? await deps
             .documentContext({
               chatId: chat.id,
               question: messageText(question.content),
+              previousQuestion: previous && messageText(previous.content),
               budgetTokens: Math.floor(room * DOCUMENT_SHARE),
             })
             .catch(() => null)
@@ -333,7 +337,8 @@ export function createChatStore(deps: ChatDeps) {
           ...metrics,
         });
       }
-      if (documents) await repos.messages.setSources(id, documents.sources);
+      if (documents)
+        await repos.messages.setSources(id, sourcesUsed(text, documents));
       await repos.chats.touch(chat.id);
     } catch {
       // The chat was deleted while answering.

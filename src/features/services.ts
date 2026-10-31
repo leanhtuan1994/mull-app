@@ -128,6 +128,7 @@ export const ingest = createIngest({
 async function documentContext(input: {
   chatId: number;
   question: string;
+  previousQuestion?: string;
   budgetTokens: number;
 }) {
   const repos = getRepos();
@@ -143,6 +144,7 @@ async function documentContext(input: {
     chunks,
     names,
     question: input.question,
+    previousQuestion: input.previousQuestion,
     budgetTokens: input.budgetTokens,
     embedQuery: async (question) => {
       const model = embeddingModel();

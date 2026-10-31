@@ -265,6 +265,7 @@ describe('chat store', () => {
           sources: [
             { n: 1, chunkId: 5, attachmentId: 2, name: 'lich.pdf', page: 1 },
           ],
+          passages: ['Họp lúc 9 giờ.'],
           needsEmbeddings: false,
         };
       },
@@ -288,6 +289,34 @@ describe('chat store', () => {
     ]);
     const saved = await repos.messages.listByChat(chatId!);
     expect(saved[0].content).toBe('Mấy giờ họp?');
+  });
+
+  it('searches with the previous question and drops sources of a "not found" answer', async () => {
+    const asked: { question: string; previousQuestion?: string }[] = [];
+    const engine = new MockEngine({
+      reply: 'Mình không thấy điều này trong tài liệu.',
+    });
+    const { chat } = await setup(engine, {
+      documentContext: async (input) => {
+        asked.push(input);
+        return {
+          block: '<tài_liệu>\n[1] (lich.pdf)\nHọp lúc 9 giờ.\n</tài_liệu>',
+          sources: [
+            { n: 1, chunkId: 5, attachmentId: 2, name: 'lich.pdf', page: null },
+          ],
+          passages: ['Họp lúc 9 giờ.'],
+          needsEmbeddings: false,
+        };
+      },
+    });
+    await chat.send('Mấy giờ họp?');
+    await chat.send('Còn ở phòng nào?');
+    expect(asked[0].previousQuestion).toBeUndefined();
+    expect(asked[1]).toMatchObject({
+      question: 'Còn ở phòng nào?',
+      previousQuestion: 'Mấy giờ họp?',
+    });
+    expect(chat.store.getState().messages.at(-1)!.sources).toEqual([]);
   });
 
   describe('images', () => {
@@ -376,6 +405,7 @@ describe('chat store', () => {
       documentContext: async () => ({
         block: 'chữ '.repeat(20000),
         sources: [],
+        passages: [],
         needsEmbeddings: false,
       }),
     });

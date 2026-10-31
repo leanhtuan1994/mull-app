@@ -66,6 +66,22 @@ export const HANDBOOK_QUESTIONS: readonly [string, number][] = [
   ['Quên mã tủ đồ thì làm sao?', 25],
 ];
 
+/**
+ * Follow-ups: [previous question, follow-up, section that answers the
+ * follow-up]. Most cannot be answered from the follow-up alone; the last
+ * two change the subject and must not be pulled back to the previous one.
+ */
+export const HANDBOOK_FOLLOW_UPS: readonly [string, string, number][] = [
+  ['Mạng Wi-Fi cho khách tên là gì?', 'Mật khẩu của nó đổi khi nào?', 23],
+  ['Căng tin ở tầng mấy?', 'Mấy giờ thì nó mở cửa?', 8],
+  ['Ai phụ trách hỗ trợ kỹ thuật?', 'Số máy lẻ của anh ấy là bao nhiêu?', 20],
+  ['Tiệc cuối năm tổ chức khi nào?', 'Mỗi phòng ban chuẩn bị gì cho nó?', 18],
+  ['Laptop bị hỏng thì báo ai?', 'Có được tự mang đi sửa không?', 4],
+  ['Quỹ phúc lợi hỗ trợ kết hôn bao nhiêu?', 'Còn sinh con thì sao?', 24],
+  ['Một năm có bao nhiêu ngày phép?', 'Còn nghỉ ốm thì phải báo ai?', 2],
+  ['Ngày nào nhận lương?', 'Bảo hiểm sức khoẻ có khám răng không?', 13],
+];
+
 /** Questions the handbook does not answer; retrieval should pick little. */
 export const HANDBOOK_UNANSWERED: readonly string[] = [
   'Có được mang thú cưng tới văn phòng không?',

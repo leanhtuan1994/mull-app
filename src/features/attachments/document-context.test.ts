@@ -2,7 +2,12 @@ import type { IndexedChunk } from '@/db/types';
 import { estimateTokens } from '@/features/chat/token-estimate';
 import { mockEmbedding } from '@/features/llm/mock-engine';
 
-import { buildDocumentContext, citedNumbers } from './document-context';
+import {
+  buildDocumentContext,
+  citedNumbers,
+  searchQuery,
+  sourcesUsed,
+} from './document-context';
 
 const TOPICS = [
   'Lịch họp nhóm vào sáng thứ Hai lúc chín giờ tại phòng họp tầng ba.',
@@ -123,5 +128,71 @@ describe('citedNumbers', () => {
     expect(
       citedNumbers('Theo [2] và [1], rồi [2]. Xem [web](x) và [3](y).')
     ).toEqual([2, 1]);
+  });
+});
+
+describe('searchQuery', () => {
+  const previous = 'Mạng Wi-Fi cho khách tên là gì?';
+
+  it.each([
+    'Mật khẩu của nó đổi khi nào?',
+    'Còn sinh con thì sao?',
+    'Số máy lẻ của anh ấy là bao nhiêu?',
+    'Ở đâu?',
+  ])('joins the previous question to the follow-up "%s"', (question) => {
+    expect(searchQuery(question, previous)).toBe(`${previous}\n${question}`);
+  });
+
+  it('keeps a question that stands on its own', () => {
+    const question = 'Bảo hiểm sức khoẻ có khám răng không?';
+    expect(searchQuery(question, previous)).toBe(question);
+  });
+
+  it('does not take "nó" from inside another word', () => {
+    const question = 'Nộp đơn nghỉ phép năm cho quản lý trực tiếp?';
+    expect(searchQuery(question, previous)).toBe(question);
+  });
+
+  it('keeps the question when there is no earlier one', () => {
+    expect(searchQuery('Còn nó?')).toBe('Còn nó?');
+  });
+});
+
+describe('sourcesUsed', () => {
+  const sources = [1, 2, 3].map((n) => ({
+    n,
+    chunkId: n,
+    attachmentId: 1,
+    name: 'so-tay.pdf',
+    page: null,
+  }));
+  const passages = [
+    'Căng tin ở tầng hai phục vụ bữa trưa từ 11 giờ 30.',
+    'Bãi xe máy ở tầng hầm B1, ô tô ở tầng B2.',
+    'Mật khẩu dài ít nhất 12 ký tự.',
+  ];
+
+  it('keeps every source when the answer cites by number', () => {
+    expect(sourcesUsed('Ở tầng hai [1].', { sources, passages })).toEqual(
+      sources
+    );
+  });
+
+  it('keeps the sources whose wording the answer reuses', () => {
+    const used = sourcesUsed('Ô tô gửi ở tầng hầm B2.', { sources, passages });
+    expect(used.map((s) => s.n)).toEqual([2]);
+  });
+
+  it('shows none when the answer says the documents lack it', () => {
+    expect(
+      sourcesUsed('Mình không thấy thông tin này trong tài liệu.', {
+        sources,
+        passages,
+      })
+    ).toEqual([]);
+  });
+
+  it('keeps them all when nothing overlaps', () => {
+    expect(sourcesUsed('Được.', { sources, passages })).toEqual(sources);
   });
 });
